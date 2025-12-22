@@ -21,7 +21,7 @@ Learn more about IDE Support for Vue in the [Vue Docs Scaling up Guide](https://
 2. 两个法宝合成一个，会只保留一个法宝的形状，属性词条概率性继承。
 3. 增加一些辅助合成的道具，可以指向性合成形状，指向性继承词条。
 
-
+ 
 ## 彩蛋系统
 1. 合成魔方可以有彩蛋
 2. 剧情也可以有彩蛋

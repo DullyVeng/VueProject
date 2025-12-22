@@ -28,4 +28,4 @@ Learn more about IDE Support for Vue in the [Vue Docs Scaling up Guide](https://
 3. 像素动画可以有彩蛋
 
 ## 地图系统
-1.111111111
+1.1

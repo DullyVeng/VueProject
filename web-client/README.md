@@ -21,7 +21,7 @@ Learn more about IDE Support for Vue in the [Vue Docs Scaling up Guide](https://
 2. 两个法宝合成一个，会只保留一个法宝的形状，属性词条概率性继承。
 3. 增加一些辅助合成的道具，可以指向性合成形状，指向性继承词条。
 
- 
+     
 ## 彩蛋系统
 1. 合成魔方可以有彩蛋
 2. 剧情也可以有彩蛋
@@ -29,3 +29,15 @@ Learn more about IDE Support for Vue in the [Vue Docs Scaling up Guide](https://
 
 ## 地图系统
 1.1   
+
+
+## 种田系统
+1. 收集材料和种子，种植药田，获得收益，后续药材可以炼丹。
+2. 升级需要灵石，药田开启种植后也会消耗药田的灵气，需要定时补充灵石。
+3. 种子固定区域固定的怪可以爆出，收获时概率收获种子。
+
+
+## 生活技能系统
+1. 种植技能
+2. 炼丹技能
+

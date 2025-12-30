@@ -251,6 +251,13 @@ const getRing = (index) => {
   flex-direction: column;
   height: 80vh;
   box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  transition: max-width 0.3s;
+}
+
+@media (min-width: 1024px) {
+  .panel {
+    max-width: 1400px;
+  }
 }
 
 .header {

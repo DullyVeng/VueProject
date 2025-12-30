@@ -102,6 +102,13 @@ watchEffect(() => {
   padding: 2rem;
 }
 
+@media (min-width: 1024px) {
+  .battle-arena {
+    flex-direction: row;
+    gap: 4rem;
+  }
+}
+
 .fighter-card {
   display: flex;
   align-items: center;
@@ -191,6 +198,13 @@ watchEffect(() => {
   grid-template-columns: 1fr 1fr;
   gap: 1rem;
   background: rgba(0, 0, 0, 0.3);
+}
+
+@media (min-width: 1024px) {
+  .action-panel {
+    grid-template-columns: repeat(4, 1fr);
+    padding: 2rem 4rem;
+  }
 }
 
 .btn-action {

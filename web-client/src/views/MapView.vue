@@ -92,6 +92,13 @@ const goHome = () => {
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 16px;
   padding: 2rem;
+  transition: max-width 0.3s;
+}
+
+@media (min-width: 1024px) {
+  .map-panel {
+    max-width: 1200px;
+  }
 }
 
 .header {

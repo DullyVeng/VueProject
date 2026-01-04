@@ -98,9 +98,9 @@ const turn = computed(() => combatStore.turn)
         <div class="info">
           <h3>{{ combatStore.enemy.name }} (Lv.{{ combatStore.enemy.level }})</h3>
           <div class="hp-bar-container">
-            <div class="hp-bar" :style="{ width: (combatStore.enemy.hp / combatStore.enemy.max_hp * 100) + '%' }"></div>
+            <div class="hp-bar" :style="{ width: (Math.max(0, combatStore.enemy.hp) / combatStore.enemy.max_hp * 100) + '%' }"></div>
           </div>
-          <span class="hp-text">{{ combatStore.enemy.hp }} / {{ combatStore.enemy.max_hp }}</span>
+          <span class="hp-text">{{ Math.max(0, combatStore.enemy.hp) }} / {{ combatStore.enemy.max_hp }}</span>
         </div>
       </div>
 
@@ -111,9 +111,9 @@ const turn = computed(() => combatStore.turn)
         <div class="info">
           <h3>{{ characterStore.character.name }} (Lv.{{ characterStore.character.level }})</h3>
           <div class="hp-bar-container">
-            <div class="hp-bar player-hp" :style="{ width: (characterStore.character.hp / characterStore.character.max_hp * 100) + '%' }"></div>
+            <div class="hp-bar player-hp" :style="{ width: (Math.max(0, characterStore.character.hp) / characterStore.character.max_hp * 100) + '%' }"></div>
           </div>
-          <span class="hp-text">{{ characterStore.character.hp }} / {{ characterStore.character.max_hp }}</span>
+          <span class="hp-text">{{ Math.max(0, characterStore.character.hp) }} / {{ characterStore.character.max_hp }}</span>
         </div>
         <div class="model">{{ characterStore.character.gender === 'male' ? '⚔️' : '🔮' }}</div>
       </div>
@@ -131,9 +131,9 @@ const turn = computed(() => combatStore.turn)
             <span class="fabao-icon">{{ fabao.icon }}</span>
             <span class="fabao-name">{{ fabao.name }}</span>
             <div class="mini-hp-bar">
-              <div class="fill" :style="{ width: (fabao.hp / fabao.max_hp * 100) + '%' }"></div>
+              <div class="fill" :style="{ width: (Math.max(0, fabao.hp) / fabao.max_hp * 100) + '%' }"></div>
             </div>
-            <span class="hp-label">{{ fabao.hp }}/{{ fabao.max_hp }}</span>
+            <span class="hp-label">{{ Math.max(0, fabao.hp) }}/{{ fabao.max_hp }}</span>
           </div>
           <div v-if="combatStore.enemySummonedFabaos.length === 0" class="no-fabaos">
             暂无法宝
@@ -151,9 +151,9 @@ const turn = computed(() => combatStore.turn)
             <span class="fabao-icon">{{ fabao.icon }}</span>
             <span class="fabao-name">{{ fabao.name }}</span>
             <div class="mini-hp-bar">
-              <div class="fill player" :style="{ width: (fabao.hp / fabao.max_hp * 100) + '%' }"></div>
+              <div class="fill player" :style="{ width: (Math.max(0, fabao.hp) / fabao.max_hp * 100) + '%' }"></div>
             </div>
-            <span class="hp-label">{{ fabao.hp }}/{{ fabao.max_hp }}</span>
+            <span class="hp-label">{{ Math.max(0, fabao.hp) }}/{{ fabao.max_hp }}</span>
           </div>
           <div v-if="combatStore.playerSummonedFabaos.length === 0" class="no-fabaos">
             暂无法宝

@@ -28,8 +28,8 @@ export const useCombatStore = defineStore('combat', () => {
     const enemy = ref(null)
     const enemySummonedFabaos = ref([])  // 敌人召唤的法宝
 
-    // 玩家状态
-    const playerSummonedFabaos = computed(() => fabaoStore.summonedFabaos)
+    // 玩家状态 - 改为独立维护，不依赖 fabaoStore 的 computed
+    const playerSummonedFabaos = ref([])  // 玩家召唤的法宝（战斗中的快照）
 
     // 战斗行动队列
     const actionQueue = ref([])
@@ -72,6 +72,11 @@ export const useCombatStore = defineStore('combat', () => {
         combatPhase.value = 'enemy_summon'
         clearLogs()
         enemySummonedFabaos.value = []
+        playerSummonedFabaos.value = []  // 清空玩家法宝列表
+
+        // 初始化行动点到满值
+        const maxAP = characterStore.character.max_action_points || 10
+        characterStore.character.current_action_points = maxAP
 
         addLog(`遭遇了 ${enemy.value.name} (Lv.${enemy.value.level})!`, 'special')
         addLog(`敌人类型: ${getEnemyTypeText(enemy.value.type)}`, 'info')
@@ -97,10 +102,33 @@ export const useCombatStore = defineStore('combat', () => {
             addLog(`${enemy.value.name}召唤了${enemyFabao.name}！`, 'summon')
         }
 
-        // 进入玩家召唤阶段
-        combatPhase.value = 'player_summon'
-        addLog('--- 你的召唤阶段 ---', 'special')
-        addLog('请选择要召唤的法宝（可用法宝在UI中操作）', 'info')
+        // 第一回合进入玩家召唤阶段，后续回合直接进入准备阶段
+        if (turn.value === 1) {
+            combatPhase.value = 'player_summon'
+            addLog('--- 你的召唤阶段 ---', 'special')
+            addLog('请选择要召唤的法宝（可用法宝在UI中操作）', 'info')
+        } else {
+            combatPhase.value = 'prepare'
+            addLog('敌人召唤完成，可选择召唤法宝或直接开始战斗', 'info')
+        }
+    }
+
+    /**
+     * 召唤法宝（战斗中）
+     */
+    async function summonFabao(fabaoId) {
+        // 调用 fabaoStore 的召唤逻辑
+        const result = await fabaoStore.summonFabao(fabaoId)
+
+        if (result.success) {
+            // 将法宝添加到战斗快照数组
+            const fabao = fabaoStore.fabaos.find(f => f.id === fabaoId)
+            if (fabao && !playerSummonedFabaos.value.find(f => f.id === fabaoId)) {
+                playerSummonedFabaos.value.push(fabao)
+            }
+        }
+
+        return result
     }
 
     /**
@@ -141,8 +169,8 @@ export const useCombatStore = defineStore('combat', () => {
             type: 'attack'
         })
 
-        // 玩家法宝行动
-        playerSummonedFabaos.value.forEach(fabao => {
+        // 玩家法宝行动（只有存活的法宝）
+        playerSummonedFabaos.value.filter(f => f.hp > 0).forEach(fabao => {
             actionQueue.value.push({
                 actor: 'player_fabao',
                 fabaoId: fabao.id,
@@ -159,8 +187,8 @@ export const useCombatStore = defineStore('combat', () => {
             type: 'attack'
         })
 
-        // 敌人法宝行动
-        enemySummonedFabaos.value.forEach((fabao, index) => {
+        // 敌人法宝行动（只有存活的法宝）
+        enemySummonedFabaos.value.filter(f => f.hp > 0).forEach((fabao, index) => {
             actionQueue.value.push({
                 actor: 'enemy_fabao',
                 fabaoIndex: index,
@@ -201,9 +229,9 @@ export const useCombatStore = defineStore('combat', () => {
         characterStore.character.current_action_points = newAP
         addLog(`你恢复了${regen}点行动点`, 'heal')
 
-        // 进入准备阶段，等待玩家点击继续战斗
+        // 进入准备阶段，玩家可以选择召唤法宝或直接开始战斗
         combatPhase.value = 'prepare'
-        addLog('回合结束，点击"继续战斗"按钮开始下一回合', 'info')
+        addLog('回合结束，可以继续召唤法宝或开始战斗', 'info')
     }
 
     /**
@@ -234,10 +262,12 @@ export const useCombatStore = defineStore('combat', () => {
         let target = null
         let targetType = 'enemy'
 
-        if (enemySummonedFabaos.value.length > 0) {
-            // 随机选择一个敌人法宝
-            const index = Math.floor(Math.random() * enemySummonedFabaos.value.length)
-            target = enemySummonedFabaos.value[index]
+        // 只选择存活的敌人法宝
+        const aliveFabaos = enemySummonedFabaos.value.filter(f => f.hp > 0)
+        if (aliveFabaos.length > 0) {
+            // 随机选择一个存活的敌人法宝
+            const index = Math.floor(Math.random() * aliveFabaos.length)
+            target = aliveFabaos[index]
             targetType = 'enemy_fabao'
         } else {
             target = enemy.value
@@ -250,7 +280,7 @@ export const useCombatStore = defineStore('combat', () => {
             addLog(`你攻击了${target.name}，造成${damage}点伤害！`, 'damage')
             if (target.hp <= 0) {
                 addLog(`${target.name}被击败了！`, 'special')
-                enemySummonedFabaos.value.splice(enemySummonedFabaos.value.indexOf(target), 1)
+                // 不再移除死亡法宝，保持显示
             }
         } else {
             addLog(`你攻击了${enemy.value.name}，造成${damage}点伤害！`, 'damage')
@@ -268,9 +298,11 @@ export const useCombatStore = defineStore('combat', () => {
         let target = null
         let targetType = 'enemy'
 
-        if (enemySummonedFabaos.value.length > 0) {
-            const index = Math.floor(Math.random() * enemySummonedFabaos.value.length)
-            target = enemySummonedFabaos.value[index]
+        // 只选择存活的敌人法宝
+        const aliveFabaos = enemySummonedFabaos.value.filter(f => f.hp > 0)
+        if (aliveFabaos.length > 0) {
+            const index = Math.floor(Math.random() * aliveFabaos.length)
+            target = aliveFabaos[index]
             targetType = 'enemy_fabao'
         } else {
             target = enemy.value
@@ -284,7 +316,7 @@ export const useCombatStore = defineStore('combat', () => {
             addLog(`${fabao.name}使用${skill.name}攻击${target.name}，造成${damage}点伤害！`, 'damage')
             if (target.hp <= 0) {
                 addLog(`${target.name}被击败了！`, 'special')
-                enemySummonedFabaos.value.splice(enemySummonedFabaos.value.indexOf(target), 1)
+                // 不再移除死亡法宝，保持显示
             }
         } else {
             addLog(`${fabao.name}使用${skill.name}攻击${enemy.value.name}，造成${damage}点伤害！`, 'damage')
@@ -303,10 +335,12 @@ export const useCombatStore = defineStore('combat', () => {
         // 根据攻击倾向决定目标
         const roll = Math.random()
 
-        if (roll < preference.fabao && playerSummonedFabaos.value.length > 0) {
+        // 只选择存活的玩家法宝
+        const aliveFabaos = playerSummonedFabaos.value.filter(f => f.hp > 0)
+        if (roll < preference.fabao && aliveFabaos.length > 0) {
             // 攻击玩家法宝
-            const index = Math.floor(Math.random() * playerSummonedFabaos.value.length)
-            target = playerSummonedFabaos.value[index]
+            const index = Math.floor(Math.random() * aliveFabaos.length)
+            target = aliveFabaos[index]
             targetType = 'player_fabao'
         } else {
             // 攻击玩家本体
@@ -340,9 +374,11 @@ export const useCombatStore = defineStore('combat', () => {
         let target = null
         let targetType = 'player'
 
-        if (playerSummonedFabaos.value.length > 0 && Math.random() < 0.6) {
-            const index = Math.floor(Math.random() * playerSummonedFabaos.value.length)
-            target = playerSummonedFabaos.value[index]
+        // 只选择存活的玩家法宝
+        const aliveFabaos = playerSummonedFabaos.value.filter(f => f.hp > 0)
+        if (aliveFabaos.length > 0 && Math.random() < 0.6) {
+            const index = Math.floor(Math.random() * aliveFabaos.length)
+            target = aliveFabaos[index]
             targetType = 'player_fabao'
         } else {
             target = characterStore.character
@@ -488,8 +524,13 @@ export const useCombatStore = defineStore('combat', () => {
                     .from('fabao_instances')
                     .update({ is_summoned: false })
                     .eq('id', fabao.id)
+                // 同时更新本地状态的两种命名
                 fabao.isSummoned = false
+                fabao.is_summoned = false
             }
+
+            // 重新加载法宝数据以确保状态同步
+            await fabaoStore.fetchFabaos()
 
             combatPhase.value = 'settlement'
 
@@ -520,8 +561,13 @@ export const useCombatStore = defineStore('combat', () => {
                     .from('fabao_instances')
                     .update({ is_summoned: false })
                     .eq('id', fabao.id)
+                // 同时更新本地状态的两种命名
                 fabao.isSummoned = false
+                fabao.is_summoned = false
             }
+
+            // 重新加载法宝数据以确保状态同步
+            await fabaoStore.fetchFabaos()
 
             combatPhase.value = 'settlement'
 
@@ -537,7 +583,16 @@ export const useCombatStore = defineStore('combat', () => {
     /**
      * 返回地图
      */
-    function returnToMap() {
+    async function returnToMap() {
+        // 恢复行动点到满值
+        const maxAP = characterStore.character.max_action_points || 10
+        characterStore.character.current_action_points = maxAP
+
+        await supabase
+            .from('characters')
+            .update({ current_action_points: maxAP })
+            .eq('id', characterStore.character.id)
+
         isInCombat.value = false
         router.push('/map')
     }
@@ -606,6 +661,7 @@ export const useCombatStore = defineStore('combat', () => {
 
         // 方法
         startCombat,
+        summonFabao,
         playerConfirmSummon,
         startBattle,
         returnToMap,

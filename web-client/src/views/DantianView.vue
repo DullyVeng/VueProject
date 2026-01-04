@@ -8,7 +8,24 @@
       <div class="spacer"></div>
     </div>
     
-    <div class="dantian-container">
+    <!-- 标签切换 -->
+    <div class="tabs">
+      <button 
+        :class="['tab', { active: activeTab === 'manage' }]"
+        @click="activeTab = 'manage'"
+      >
+        🔮 丹田管理
+      </button>
+      <button 
+        :class="['tab', { active: activeTab === 'enhance' }]"
+        @click="activeTab = 'enhance'"
+      >
+        ⚡ 法宝强化
+      </button>
+    </div>
+    
+    <!-- 丹田管理界面 -->
+    <div v-if="activeTab === 'manage'" class="dantian-container">
       <!-- 左侧：丹田拼图区域 -->
       <div class="dantian-grid-section">
         <div class="section-header">
@@ -212,6 +229,130 @@
         </div>
       </div>
     </div>
+    
+    <!-- 法宝强化界面 -->
+    <div v-else-if="activeTab === 'enhance'" class="enhance-container">
+      <!-- 左侧：可强化法宝列表 -->
+      <div class="fabao-list-panel">
+        <h3>可强化法宝</h3>
+        <div class="enhance-hint">
+          💡 法宝需要从丹田中卸下才能强化（右键法宝选择卸下）
+        </div>
+        <div class="enhance-fabao-list">
+          <div 
+            v-for="fabao in enhanceableFabaos" 
+            :key="fabao.id"
+            class="enhance-fabao-item"
+            :class="{ selected: selectedEnhanceFabao?.id === fabao.id }"
+            @click="selectEnhanceFabao(fabao)"
+          >
+            <span class="fabao-icon-large">{{ fabao.icon }}</span>
+            <div class="fabao-info">
+              <div class="fabao-name">{{ fabao.name }}</div>
+              <div class="fabao-level">Lv.{{ fabao.enhance_level }}/{{ fabao.max_enhance_level }}</div>
+              <div class="fabao-grid">{{ fabao.current_grid_count }}格</div>
+            </div>
+          </div>
+          <div v-if="enhanceableFabaos.length === 0" class="empty-state">
+            暂无可强化的法宝
+          </div>
+        </div>
+      </div>
+      
+      <!-- 右侧：强化详情面板 -->
+      <div class="enhance-detail-panel" v-if="selectedEnhanceFabao">
+        <h2>{{ selectedEnhanceFabao.name }}</h2>
+        
+        <!-- 当前状态 -->
+        <div class="section">
+          <h3>当前状态</h3>
+          <div class="stats-grid">
+            <div class="stat-item">
+              <span class="label">格子数</span>
+              <span class="value">{{ selectedEnhanceFabao.current_grid_count }}格</span>
+            </div>
+            <div class="stat-item">
+              <span class="label">攻击力</span>
+              <span class="value">{{ selectedEnhanceFabao.attack }}</span>
+            </div>
+            <div class="stat-item">
+              <span class="label">防御力</span>
+              <span class="value">{{ selectedEnhanceFabao.defense }}</span>
+            </div>
+            <div class="stat-item">
+              <span class="label">生命值</span>
+              <span class="value">{{ selectedEnhanceFabao.max_hp }}</span>
+            </div>
+            <div class="stat-item">
+              <span class="label">强化等级</span>
+              <span class="value">{{ selectedEnhanceFabao.enhance_level }}/{{ selectedEnhanceFabao.max_enhance_level }}</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 强化后预览 -->
+        <div class="section">
+          <h3>强化后预览</h3>
+          <div class="stats-grid preview">
+            <div class="stat-item">
+              <span class="label">格子数</span>
+              <span class="value change">{{ selectedEnhanceFabao.current_grid_count - 1 }}格 <span class="arrow">↓</span></span>
+            </div>
+            <div class="stat-item">
+              <span class="label">攻击力</span>
+              <span class="value change">{{ Math.floor(selectedEnhanceFabao.attack * 1.08) }} <span class="arrow">↑</span></span>
+            </div>
+            <div class="stat-item">
+              <span class="label">防御力</span>
+              <span class="value change">{{ Math.floor(selectedEnhanceFabao.defense * 1.06) }} <span class="arrow">↑</span></span>
+            </div>
+            <div class="stat-item">
+              <span class="label">生命值</span>
+              <span class="value ch ange">{{ Math.floor(selectedEnhanceFabao.max_hp * 1.1) }} <span class="arrow">↑</span></span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 强化信息 -->
+        <div class="section">
+          <h3>强化信息</h3>
+          <div class="enhance-info">
+            <div class="info-row">
+              <span class="label">消耗灵石：</span>
+              <span class="value cost">{{ calculateEnhanceCost(selectedEnhanceFabao) }}</span>
+            </div>
+            <div class="info-row">
+              <span class="label">成功率：</span>
+              <span class="value rate">{{ (calculateSuccessRate(selectedEnhanceFabao) * 100).toFixed(1) }}%</span>
+            </div>
+            <div class="info-row">
+              <span class="label">当前余额：</span>
+              <span class="value">{{ characterStore.character.silver || 0 }} 灵石</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 强化按钮 -->
+        <button 
+          @click="handleEnhance"
+          class="btn-enhance"
+          :disabled="!canEnhance(selectedEnhanceFabao)"
+        >
+          🔨 强化法宝
+        </button>
+        
+        <div v-if="!canEnhance(selectedEnhanceFabao)" class="warning-text">
+          {{ getEnhanceWarning(selectedEnhanceFabao) }}
+        </div>
+      </div>
+      
+      <div v-else class="enhance-detail-panel empty">
+        <div class="empty-placeholder">
+          <span class="icon">⚡</span>
+          <p>请从左侧选择要强化的法宝</p>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -229,6 +370,12 @@ const GRID_GAP = 2    // 格子间隙2px
 const GRID_PADDING = 2  // 网格padding 2px
 const gridRef = ref(null)
 const viewRef = ref(null)
+
+// 标签切换状态
+const activeTab = ref('manage')  // 'manage' 或 'enhance'
+
+// 强化功能状态
+const selectedEnhanceFabao = ref(null)
 
 // 计算格子的实际位置（包含gap和padding）
 function getCellPosition(x, y) {
@@ -290,6 +437,99 @@ const placedFabaos = computed(() => {
   })))
   return placed
 })
+
+// ==================== 强化功能 ====================
+
+// 可强化的法宝列表（必须先从丹田卸下）
+const enhanceableFabaos = computed(() => {
+  return fabaoStore.fabaos.filter(f => 
+    !f.isInDantian &&  // 必须不在丹田中
+    !f.isDamaged &&    // 必须未损毁
+    f.enhance_level < (f.max_enhance_level || 5) &&  // 未达上限
+    (f.current_grid_count || countGrids(f.shape)) > 1  // 格子数大于1
+  )
+})
+
+// 选择要强化的法宝
+function selectEnhanceFabao(fabao) {
+  selectedEnhanceFabao.value = fabao
+}
+
+// 计算强化消耗
+function calculateEnhanceCost(fabao) {
+  return Math.floor(100 * Math.pow(1.5, fabao.enhance_level || 0))
+}
+
+// 计算成功率
+function calculateSuccessRate(fabao) {
+  const fortune = characterStore.character.fortune || 5
+  const baseRate = 1.0 - ((fabao.enhance_level || 0) * 0.05)
+  const fortuneBonus = fortune * 0.005
+  return Math.min(0.95, baseRate + fortuneBonus)
+}
+
+// 检查是否可以强化
+function canEnhance(fabao) {
+  if (!fabao) return false
+  const cost = calculateEnhanceCost(fabao)
+  const currentSilver = characterStore.character.silver || 0
+  return currentSilver >= cost &&
+         fabao.enhance_level < (fabao.max_enhance_level || 5) &&
+         (fabao.current_grid_count || countGrids(fabao.shape)) > 1
+}
+
+// 获取无法强化的原因
+function getEnhanceWarning(fabao) {
+  if (!fabao) return ''
+  const cost = calculateEnhanceCost(fabao)
+  const currentSilver = characterStore.character.silver || 0
+  
+  if (currentSilver < cost) {
+    return `灵石不足，需要 ${cost} 灵石，当前 ${currentSilver} 灵石`
+  }
+  if (fabao.enhance_level >= (fabao.max_enhance_level || 5)) {
+    return '已达强化上限'
+  }
+  if ((fabao.current_grid_count || countGrids(fabao.shape)) <= 1) {
+    return '格子数不足，无法继续强化'
+  }
+  return ''
+}
+
+// 执行强化
+async function handleEnhance() {
+  if (!selectedEnhanceFabao.value) return
+  
+  const fabao = selectedEnhanceFabao.value
+  const cost = calculateEnhanceCost(fabao)
+  const rate = calculateSuccessRate(fabao)
+  
+  const confirmed = confirm(
+    `强化「${fabao.name}」\n\n` +
+    `等级：Lv.${fabao.enhance_level} → Lv.${fabao.enhance_level + 1}\n` +
+    `消耗：${cost} 灵石\n` +
+    `成功率：${(rate * 100).toFixed(1)}%\n\n` +
+    `确认强化吗？`
+  )
+  
+  if (!confirmed) return
+  
+  const result = await fabaoStore.enhanceFabao(fabao.id)
+  
+  if (result.success) {
+    alert(
+      `✨ 强化成功！✨\n\n` +
+      `格子数：${(fabao.current_grid_count || countGrids(fabao.shape))} → ${fabao.current_grid_count}\n` +
+      `攻击力：+${Math.floor(fabao.attack * 0.08)}\n` +
+      `防御力：+${Math.floor(fabao.defense * 0.06)}\n` +
+      `生命值：+${Math.floor(fabao.max_hp * 0.1)}`
+    )
+  } else {
+    alert(`💔 强化失败...\n\n${result.reason || '强化失败'}`)
+  }
+}
+
+// ==================== 丹田管理功能 ====================
 
 // 过滤后的法宝列表
 const filteredFabaos = computed(() => {
@@ -1289,4 +1529,299 @@ h1 {
   padding: 40px;
   color: #999;
 }
+
+/* ==================== 标签切换样式 ==================== */
+
+.tabs {
+  display: flex;
+  gap: 1rem;
+  margin: 0 2rem 2rem 2rem;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.tab {
+  padding: 1rem 2rem;
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+  font-size: 1.1rem;
+  font-weight: bold;
+  color: #666;
+  transition: all 0.2s;
+}
+
+.tab:hover {
+  color: #4CAF50;
+}
+
+.tab.active {
+  color: #4CAF50;
+  border-bottom-color: #4CAF50;
+}
+
+/* ==================== 强化界面样式 ==================== */
+
+.enhance-container {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 2rem;
+  padding: 0 2rem;
+  height: calc(100vh - 240px);
+}
+
+/* 法宝列表面板 */
+.fabao-list-panel {
+  background: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  overflow-y: auto;
+}
+
+.fabao-list-panel h3 {
+  margin: 0 0 1rem 0;
+  color: #2c3e50;
+  font-size: 1.1rem;
+}
+
+.enhance-hint {
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+  background: linear-gradient(135deg, #fff9e6 0%, #ffedcc 100%);
+  border-left: 4px solid #f39c12;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: #856404;
+  line-height: 1.4;
+}
+
+.enhance-fabao-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.enhance-fabao-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: #f9f9f9;
+}
+
+.enhance-fabao-item:hover {
+  background: #f0f0f0;
+  transform: translateX(4px);
+}
+
+.enhance-fabao-item.selected {
+  background: #e8f5e9;
+  border-color: #4CAF50;
+  box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
+}
+
+.enhance-fabao-item .fabao-icon-large {
+  font-size: 2rem;
+}
+
+.enhance-fabao-item .fabao-info {
+  flex: 1;
+}
+
+.enhance-fabao-item .fabao-name {
+  font-weight: bold;
+  color: #2c3e50;
+  margin-bottom: 0.25rem;
+}
+
+.enhance-fabao-item .fabao-level {
+  font-size: 0.9rem;
+  color: #7f8c8d;
+}
+
+.enhance-fabao-item .fabao-grid {
+  font-size: 0.85rem;
+  color: #95a5a6;
+}
+
+/* 强化详情面板 */
+.enhance-detail-panel {
+  background: white;
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  overflow-y: auto;
+}
+
+.enhance-detail-panel h2 {
+  margin: 0 0 2rem 0;
+  color: #2c3e50;
+  font-size: 1.8rem;
+  text-align: center;
+}
+
+.enhance-detail-panel .section {
+  margin-bottom: 2rem;
+}
+
+.enhance-detail-panel .section h3 {
+  margin: 0 0 1rem 0;
+  color: #34495e;
+  font-size: 1.2rem;
+  border-bottom: 2px solid #ecf0f1;
+  padding-bottom: 0.5rem;
+}
+
+/* 统计网格 */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+}
+
+.stat-item {
+  background: #f8f9fa;
+  padding: 1rem;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.stat-item .label {
+  display: block;
+  font-size: 0.85rem;
+  color: #95a5a6;
+  margin-bottom: 0.5rem;
+}
+
+.stat-item .value {
+  display: block;
+  font-size: 1.3rem;
+  font-weight: bold;
+  color: #2c3e50;
+}
+
+/* 预览样式 */
+.stats-grid.preview .stat-item {
+  background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+}
+
+.stats-grid.preview .stat-item .value.change {
+  color: #27ae60;
+}
+
+.stats-grid.preview .arrow {
+  font-size: 1.1rem;
+  margin-left: 0.25rem;
+}
+
+/* 强化信息 */
+.enhance-info {
+  background: #ecf0f1;
+  padding: 1.5rem;
+  border-radius: 8px;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #d5dbdb;
+}
+
+.info-row:last-child {
+  border-bottom: none;
+}
+
+.info-row .label {
+  color: #7f8c8d;
+  font-weight: 500;
+}
+
+.info-row .value {
+  font-weight: bold;
+  color: #2c3e50;
+}
+
+.info-row .value.cost {
+  color: #f39c12;
+  font-size: 1.2rem;
+}
+
+.info-row .value.rate {
+  color: #27ae60;
+  font-size: 1.2rem;
+}
+
+/* 强化按钮 */
+.btn-enhance {
+  width: 100%;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 1.3rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s;
+  margin-top: 1rem;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.btn-enhance:hover:not(:disabled) {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.5);
+}
+
+.btn-enhance:active:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.btn-enhance:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: grayscale(1);
+  transform: none;
+}
+
+/* 警告文本 */
+.warning-text {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: #fff3cd;
+  border: 2px solid #ffc107;
+  border-radius: 8px;
+  color: #856404;
+  text-align: center;
+  font-weight: bold;
+}
+
+/* 空状态占位符 */
+.enhance-detail-panel.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.empty-placeholder {
+  text-align: center;
+  color: #95a5a6;
+}
+
+.empty-placeholder .icon {
+  font-size: 4rem;
+  display: block;
+  margin-bottom: 1rem;
+}
+
+.empty-placeholder p {
+  font-size: 1.1rem;
+  margin: 0;
+}
+
 </style>

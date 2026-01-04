@@ -1,6 +1,12 @@
 <template>
   <div class="attribute-view">
-    <h1>属性加点</h1>
+    <div class="page-header">
+      <button @click="$router.push('/')" class="btn-back">
+        ← 返回主界面
+      </button>
+      <h1>属性加点</h1>
+      <div class="spacer"></div>
+    </div>
     
     <div class="attribute-container">
       <!-- 可用属性点 -->
@@ -295,10 +301,42 @@ async function confirmReset() {
   background: #f5f5f5;
 }
 
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  gap: 20px;
+}
+
+.btn-back {
+  padding: 10px 20px;
+  background: #3498db;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.btn-back:hover {
+  background: #2980b9;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.spacer {
+  flex: 1;
+  min-width: 150px;
+}
+
 h1 {
   text-align: center;
   color: #2c3e50;
-  margin-bottom: 30px;
+  margin: 0;
 }
 
 .attribute-container {

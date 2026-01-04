@@ -12,7 +12,19 @@ const fabaoStore = useFabaoStore()
 const router = useRouter()
 const logsContainer = ref(null)
 
-onMounted(() => {
+onMounted(async () => {
+  // 加载法宝数据（确保刷新后数据可用）
+  await fabaoStore.fetchFabaos()
+  console.log('[CombatView] 法宝数据加载完成:', fabaoStore.fabaos.length, '个法宝')
+  
+  // 如果在战斗中，同步已召唤的法宝到战斗快照数组
+  if (combatStore.isInCombat) {
+    const summonedFabaos = fabaoStore.fabaos.filter(f => f.isSummoned && !f.isDamaged)
+    combatStore.playerSummonedFabaos.splice(0, combatStore.playerSummonedFabaos.length, ...summonedFabaos)
+    console.log('[CombatView] 同步已召唤法宝:', summonedFabaos.length, '个')
+  }
+  
+  // 检查是否在战斗中，否则跳转到地图
   if (!combatStore.isInCombat) {
     router.push('/map')
   }
@@ -59,7 +71,7 @@ async function handleSummon(fabao) {
     return
   }
   
-  const result = await fabaoStore.summonFabao(fabao.id)
+  const result = await combatStore.summonFabao(fabao.id)
   if (!result.success) {
     alert(`召唤失败：${result.reason}`)
   }
@@ -127,13 +139,15 @@ const turn = computed(() => combatStore.turn)
         <div class="fabao-cards">
           <div v-for="fabao in combatStore.enemySummonedFabaos" 
                :key="fabao.id" 
-               class="fabao-battle-card enemy">
+               class="fabao-battle-card enemy"
+               :class="{ 'dead': fabao.hp <= 0 }">
             <span class="fabao-icon">{{ fabao.icon }}</span>
             <span class="fabao-name">{{ fabao.name }}</span>
             <div class="mini-hp-bar">
               <div class="fill" :style="{ width: (Math.max(0, fabao.hp) / fabao.max_hp * 100) + '%' }"></div>
             </div>
             <span class="hp-label">{{ Math.max(0, fabao.hp) }}/{{ fabao.max_hp }}</span>
+            <span v-if="fabao.hp <= 0" class="death-mark">💀</span>
           </div>
           <div v-if="combatStore.enemySummonedFabaos.length === 0" class="no-fabaos">
             暂无法宝
@@ -147,13 +161,15 @@ const turn = computed(() => combatStore.turn)
         <div class="fabao-cards">
           <div v-for="fabao in combatStore.playerSummonedFabaos" 
                :key="fabao.id" 
-               class="fabao-battle-card player">
+               class="fabao-battle-card player"
+               :class="{ 'dead': fabao.hp <= 0 }">
             <span class="fabao-icon">{{ fabao.icon }}</span>
             <span class="fabao-name">{{ fabao.name }}</span>
             <div class="mini-hp-bar">
               <div class="fill player" :style="{ width: (Math.max(0, fabao.hp) / fabao.max_hp * 100) + '%' }"></div>
             </div>
             <span class="hp-label">{{ Math.max(0, fabao.hp) }}/{{ fabao.max_hp }}</span>
+            <span v-if="fabao.hp <= 0" class="death-mark">💀</span>
           </div>
           <div v-if="combatStore.playerSummonedFabaos.length === 0" class="no-fabaos">
             暂无法宝
@@ -232,7 +248,12 @@ const turn = computed(() => combatStore.turn)
           <span>我方: {{ combatStore.playerSummonedFabaos.length }}</span>
           <span>敌方: {{ combatStore.enemySummonedFabaos.length }}</span>
         </div>
-        <button class="btn-action skill" disabled>✨ 技能</button>
+        <button 
+          @click="combatStore.combatPhase = 'player_summon'" 
+          class="btn-action summon"
+        >
+          🔮 召唤法宝
+        </button>
         <button class="btn-action item" disabled>💊 物品</button>
         <button 
           class="btn-action escape" 
@@ -465,6 +486,26 @@ const turn = computed(() => combatStore.turn)
   color: #aaa;
 }
 
+/* 死亡法宝样式 */
+.fabao-battle-card.dead {
+  opacity: 0.5;
+  filter: grayscale(100%);
+}
+
+.fabao-battle-card.dead .fabao-name {
+  text-decoration: line-through;
+  color: #aaa;
+}
+
+.death-mark {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  font-size: 2rem;
+  opacity: 0.8;
+  pointer-events: none;
+}
+
 .no-fabaos {
   color: #666;
   font-style: italic;
@@ -582,6 +623,7 @@ const turn = computed(() => combatStore.turn)
 .fabao-list {
   max-height: 400px;
   overflow-y: auto;
+  overflow-x: hidden;
   margin-bottom: 1.5rem;
 }
 
@@ -723,7 +765,10 @@ const turn = computed(() => combatStore.turn)
 .attack { background: #e74c3c; }
 .attack:hover:not(:disabled) { background: #c0392b; }
 
-.skill { background: #9b59b6; }
+.summon { background: #9b59b6; }
+.summon:hover:not(:disabled) { background: #8e44ad; }
+
+.skill { background: #3498db; }
 .item { background: #f1c40f; color: #333; }
 
 .escape { background: #95a5a6; }

@@ -68,6 +68,24 @@ const router = createRouter({
             name: 'leaderboard',
             component: () => import('../views/LeaderboardView.vue'),
             meta: { requiresAuth: true }
+        },
+        {
+            path: '/test',
+            name: 'test',
+            component: () => import('../views/TestView.vue'),
+            meta: { requiresAuth: true }
+        },
+        {
+            path: '/dantian',
+            name: 'dantian',
+            component: () => import('../views/DantianView.vue'),
+            meta: { requiresAuth: true }
+        },
+        {
+            path: '/attribute',
+            name: 'attribute',
+            component: () => import('../views/AttributeView.vue'),
+            meta: { requiresAuth: true }
         }
     ]
 })

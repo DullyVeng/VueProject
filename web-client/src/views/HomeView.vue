@@ -37,6 +37,8 @@ const toggleInventory = () => {
 
 // Handlers for other buttons
 const handleMap = () => router.push('/map')
+const handleDantian = () => router.push('/dantian')
+const handleAttribute = () => router.push('/attribute')
 const handleQuests = () => router.push('/quests')
 const handleShop = () => router.push('/shop')
 const handleInn = () => router.push('/inn')
@@ -72,6 +74,8 @@ const handleInn = () => router.push('/inn')
         <ControlBar 
             @toggle-character="toggleCharacter"
             @toggle-inventory="toggleInventory"
+            @toggle-dantian="handleDantian"
+            @toggle-attribute="handleAttribute"
             @toggle-map="handleMap"
             @toggle-quests="handleQuests"
             @toggle-shop="handleShop"

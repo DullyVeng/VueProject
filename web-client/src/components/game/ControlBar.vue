@@ -1,5 +1,5 @@
 <script setup>
-const emit = defineEmits(['toggle-character', 'toggle-inventory', 'toggle-map', 'toggle-quests', 'toggle-shop', 'toggle-inn'])
+const emit = defineEmits(['toggle-character', 'toggle-inventory', 'toggle-dantian', 'toggle-attribute', 'toggle-map', 'toggle-quests', 'toggle-shop', 'toggle-inn'])
 
 </script>
 
@@ -10,6 +10,12 @@ const emit = defineEmits(['toggle-character', 'toggle-inventory', 'toggle-map', 
     </button>
     <button class="btn-control" @click="$emit('toggle-inventory')" title="背包 (B)">
        <span class="icon">🎒</span>
+    </button>
+    <button class="btn-control" @click="$emit('toggle-dantian')" title="丹田 (D)">
+       <span class="icon">🔮</span>
+    </button>
+    <button class="btn-control" @click="$emit('toggle-attribute')" title="属性加点 (A)">
+       <span class="icon">⚡</span>
     </button>
     <button class="btn-control" @click="$emit('toggle-quests')" title="任务 (Q)">
        <span class="icon">📜</span>

@@ -142,7 +142,10 @@ const turn = computed(() => combatStore.turn)
                class="fabao-battle-card enemy"
                :class="{ 'dead': fabao.hp <= 0 }">
             <span class="fabao-icon">{{ fabao.icon }}</span>
-            <span class="fabao-name">{{ fabao.name }}</span>
+            <span class="fabao-name">
+              {{ fabao.name }}
+              <span v-if="fabao.nourish_level > 0" class="nourish-indicator" :title="'温养等级 Lv.' + fabao.nourish_level">🌟{{ fabao.nourish_level }}</span>
+            </span>
             <div class="mini-hp-bar">
               <div class="fill" :style="{ width: (Math.max(0, fabao.hp) / fabao.max_hp * 100) + '%' }"></div>
             </div>
@@ -164,7 +167,10 @@ const turn = computed(() => combatStore.turn)
                class="fabao-battle-card player"
                :class="{ 'dead': fabao.hp <= 0 }">
             <span class="fabao-icon">{{ fabao.icon }}</span>
-            <span class="fabao-name">{{ fabao.name }}</span>
+            <span class="fabao-name">
+              {{ fabao.name }}
+              <span v-if="fabao.nourish_level > 0" class="nourish-indicator player" :title="'温养等级 Lv.' + fabao.nourish_level">🌟{{ fabao.nourish_level }}</span>
+            </span>
             <div class="mini-hp-bar">
               <div class="fill player" :style="{ width: (Math.max(0, fabao.hp) / fabao.max_hp * 100) + '%' }"></div>
             </div>
@@ -212,6 +218,9 @@ const turn = computed(() => combatStore.turn)
             <div class="fabao-info">
               <div class="fabao-name-row">
                 <span class="fabao-name">{{ fabao.name }}</span>
+                <span v-if="fabao.enhance_level > 0" class="enhance-badge-combat" :title="'强化等级 +' + fabao.enhance_level">
+                  +{{ fabao.enhance_level }}
+                </span>
                 <span v-if="fabao.isDamaged" class="status-badge damaged">已损毁</span>
                 <span v-else-if="fabao.isSummoned" class="status-badge summoned">已召唤</span>
               </div>
@@ -219,6 +228,13 @@ const turn = computed(() => combatStore.turn)
                 <span>HP: {{ fabao.hp }}/{{ fabao.max_hp }}</span>
                 <span>ATK: {{ fabao.attack }}</span>
                 <span>召唤: {{ fabao.summonCost || 3 }}点</span>
+              </div>
+              <!-- 温养加成显示 -->
+              <div v-if="fabao.nourish_level > 0" class="nourish-bonus-combat">
+                <span class="nourish-level">🌟 温养 Lv.{{ fabao.nourish_level }}</span>
+                <span class="bonus-item">⚔️+{{ Math.floor((fabao.base_attack || fabao.attack) * (fabao.nourish_level * 0.02)) }}</span>
+                <span class="bonus-item">🛡️+{{ Math.floor((fabao.base_defense || fabao.defense) * (fabao.nourish_level * 0.02)) }}</span>
+                <span class="bonus-item">❤️+{{ Math.floor((fabao.base_max_hp || fabao.max_hp) * (fabao.nourish_level * 0.02)) }}</span>
               </div>
             </div>
           </div>
@@ -822,6 +838,61 @@ const turn = computed(() => combatStore.turn)
 .btn-action.return-map:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 15px rgba(0, 242, 254, 0.5);
+}
+
+/* 温养等级指示器（战场卡片） */
+.nourish-indicator {
+  display: inline-block;
+  font-size: 0.65rem;
+  padding: 0.1rem 0.3rem;
+  background: linear-gradient(135deg, #ffd700, #ffed4e);
+  color: #333;
+  border-radius: 4px;
+  margin-left: 0.3rem;
+  font-weight: bold;
+  vertical-align: middle;
+}
+
+.nourish-indicator.player {
+  background: linear-gradient(135deg, #64ffda, #4facfe);
+  color: #fff;
+}
+
+/* 温养加成显示（召唤面板） */
+.nourish-bonus-combat {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.nourish-bonus-combat .nourish-level {
+  color: #ffd700;
+  font-weight: bold;
+  margin-right: 0.3rem;
+}
+
+.nourish-bonus-combat .bonus-item {
+  color: #64ffda;
+  font-weight: 500;
+}
+
+/* 强化等级徽章（战斗场景） */
+.enhance-badge-combat {
+  display: inline-block;
+  padding: 2px 5px;
+  margin-left: 6px;
+  margin-right: 6px;
+  background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+  color: white;
+  font-size: 0.7rem;
+  font-weight: bold;
+  border-radius: 3px;
+  vertical-align: middle;
+  box-shadow: 0 1px 3px rgba(238, 90, 82, 0.4);
 }
 
 </style>

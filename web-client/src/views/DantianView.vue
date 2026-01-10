@@ -150,15 +150,19 @@
             }"
           >
             <div class="card-header">
-              <span class="fabao-icon-large">{{ fabao.icon }}</span>
-              <div class="fabao-info">
-                <div class="fabao-name-row">
+              <div class="card-icon">{{ fabao.icon }}</div>
+              <div class="card-title">
+                <div class="name-row">
                   <span class="fabao-name">{{ fabao.name }}</span>
-                  <span :class="['fabao-rarity', `rarity-${fabao.rarity}`]">
-                    {{ fabao.rarityConfig?.name }}
+                  <span class="realm-text">· {{ fabao.realm }}</span>
+                  <span v-if="fabao.enhance_level > 0" class="enhance-badge" :title="'强化等级 +' + fabao.enhance_level">
+                    +{{ fabao.enhance_level }}
                   </span>
                 </div>
-                <div class="fabao-realm">{{ fabao.realm }}</div>
+              </div>
+              <!-- 稀有度徽章（右上角） -->
+              <div class="rarity-badge" :class="'rarity-' + fabao.rarity" :title="fabao.rarityConfig?.label">
+                {{ fabao.rarityConfig?.label }}
               </div>
             </div>
             
@@ -217,9 +221,49 @@
               🔧 修复 ({{ fabaoStore.calculateRepairCost(fabao) }} 灵石)
             </button>
             
+            <!-- 温养信息 -->
             <div v-if="fabao.nourish_level > 0" class="nourish-info">
-              <span class="nourish-icon">✨</span>
-              温养Lv.{{ fabao.nourish_level }}
+              <div class="nourish-header">
+                <span class="nourish-badge" :style="{ color: nourishLevelColor(fabao.nourish_level) }">
+                  🌟 温养 Lv.{{ fabao.nourish_level }}
+                </span>
+              </div>
+              <div v-if="fabao.nourish_start_time" class="nourish-progress-bar">
+                <div 
+                  class="nourish-fill" 
+                  :style="{ width: nourishProgress(fabao) + '%' }"
+                ></div>
+              </div>
+              <div v-if="fabao.nourish_start_time" class="nourish-time">
+                {{ formatNourishTime(fabao) }}
+              </div>
+              <div class="nourish-bonus" :title="'攻击+' + getNourishBonus(fabao).attack + ' 防御+' + getNourishBonus(fabao).defense + ' 生命+' + getNourishBonus(fabao).hp">
+                <span class="bonus-icon">⚔️</span>+{{ getNourishBonus(fabao).attack }}
+                <span class="bonus-icon">🛡️</span>+{{ getNourishBonus(fabao).defense }}
+                <span class="bonus-icon">❤️</span>+{{ getNourishBonus(fabao).hp }}
+              </div>
+            </div>
+            
+            <!-- 温养控制按钮 -->
+            <div v-if="!fabao.isDamaged && fabao.isInDantian" class="nourish-controls">
+              <button 
+                v-if="!fabao.nourish_start_time"
+                @mousedown.stop
+                @click.stop="startNourish(fabao)"
+                class="btn-nourish-start"
+                title="开始温养法宝"
+              >
+                🌟 开始温养
+              </button>
+              <button 
+                v-else
+                @mousedown.stop
+                @click.stop="stopNourish(fabao)"
+                class="btn-nourish-stop"
+                title="停止温养"
+              >
+                ⏸️ 停止温养
+              </button>
             </div>
           </div>
           
@@ -269,7 +313,7 @@
           <div class="stats-grid">
             <div class="stat-item">
               <span class="label">格子数</span>
-              <span class="value">{{ selectedEnhanceFabao.current_grid_count }}格</span>
+              <span class="value">{{ countGrids(selectedEnhanceFabao.shape) }}格</span>
             </div>
             <div class="stat-item">
               <span class="label">攻击力</span>
@@ -296,7 +340,7 @@
           <div class="stats-grid preview">
             <div class="stat-item">
               <span class="label">格子数</span>
-              <span class="value change">{{ selectedEnhanceFabao.current_grid_count - 1 }}格 <span class="arrow">↓</span></span>
+              <span class="value change">{{ countGrids(selectedEnhanceFabao.shape) - 1 }}格 <span class="arrow">↓</span></span>
             </div>
             <div class="stat-item">
               <span class="label">攻击力</span>
@@ -360,6 +404,7 @@
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { useFabaoStore } from '../stores/fabao'
 import { useCharacterStore } from '../stores/character'
+import { supabase } from '../supabase/client'
 import { rotateFabaoShape, countGrids, canPlaceFabao as canPlaceFabaoUtil, getFabaoOccupiedSlots } from '../utils/dantianUtils'
 
 const fabaoStore = useFabaoStore()
@@ -526,6 +571,149 @@ async function handleEnhance() {
     )
   } else {
     alert(`💔 强化失败...\n\n${result.reason || '强化失败'}`)
+  }
+}
+
+// ==================== 温养功能 ====================
+
+// 计算温养进度百分比（基于累积时间）
+function nourishProgress(fabao) {
+  // 计算总累积时间（秒）
+  let totalSeconds = fabao.nourish_accumulated_seconds || 0
+  
+  // 如果正在温养中，加上当前这次的时间
+  if (fabao.nourish_start_time) {
+    const now = Date.now()
+    const startTime = new Date(fabao.nourish_start_time).getTime()
+    const currentElapsed = (now - startTime) / 1000  // 秒
+    totalSeconds += currentElapsed
+  }
+  
+  const currentLevel = fabao.nourish_level || 0
+  
+  if (currentLevel >= 10) return 100  // 已满级
+  
+  // 每级需要的累积时间（秒）
+  const levelUpTime = [
+    24 * 3600,   // 0→1级: 1天
+    48 * 3600,   // 1→2级: 累计2天
+    72 * 3600,   // 2→3级: 累计3天
+    96 * 3600,   // 3→4级: 累计4天
+    120 * 3600,  // 4→5级: 累计5天
+    144 * 3600,  // 5→6级: 累计6天
+    168 * 3600,  // 6→7级: 累计7天
+    192 * 3600,  // 7→8级: 累计8天
+    216 * 3600,  // 8→9级: 累计9天
+    240 * 3600   // 9→10级: 累计10天
+  ]
+  
+  const currentLevelThreshold = levelUpTime[currentLevel - 1] || 0
+  const nextLevelThreshold = levelUpTime[currentLevel] || levelUpTime[levelUpTime.length - 1]
+  
+  const progressInLevel = totalSeconds - currentLevelThreshold
+  const levelRange = nextLevelThreshold - currentLevelThreshold
+  
+  return Math.min(Math.floor((progressInLevel / levelRange) * 100), 100)
+}
+
+// 格式化剩余时间（基于累积时间）
+function formatNourishTime(fabao) {
+  // 计算总累积时间（秒）
+  let totalSeconds = fabao.nourish_accumulated_seconds || 0
+  
+  // 如果正在温养中，加上当前这次的时间
+  if (fabao.nourish_start_time) {
+    const now = Date.now()
+    const startTime = new Date(fabao.nourish_start_time).getTime()
+    const currentElapsed = (now - startTime) / 1000  // 秒
+    totalSeconds += currentElapsed
+  }
+  
+  const currentLevel = fabao.nourish_level || 0
+  
+  if (currentLevel >= 10) return '已满级'
+  
+  // 每级需要的累积时间（秒）
+  const levelUpTime = [
+    24 * 3600,   // 0→1级: 1天
+    48 * 3600,   // 1→2级: 累计2天
+    72 * 3600,   // 2→3级: 累计3天
+    96 * 3600,   // 3→4级: 累计4天
+    120 * 3600,  // 4→5级: 累计5天
+    144 * 3600,  // 5→6级: 累计6天
+    168 * 3600,  // 6→7级: 累计7天
+    192 * 3600,  // 7→8级: 累计8天
+    216 * 3600,  // 8→9级: 累计9天
+    240 * 3600   // 9→10级: 累计10天
+  ]
+  
+  const nextLevelThreshold = levelUpTime[currentLevel] || levelUpTime[levelUpTime.length - 1]
+  const remaining = nextLevelThreshold - totalSeconds
+  
+  if (remaining <= 0) {
+    // 已经可以升级了，触发自动升级检查
+    if (fabao.nourish_start_time) {
+      fabaoStore.updateNourishLevel(fabao.id)
+    }
+    return '可升级！'
+  }
+  
+  const remainingHours = remaining / 3600
+  
+  if (remainingHours < 1) {
+    return `${Math.floor(remainingHours * 60)}分钟后升级`
+  } else if (remainingHours < 24) {
+    return `${Math.floor(remainingHours)}小时后升级`
+  } else {
+    const days = Math.floor(remainingHours / 24)
+    const hours = Math.floor(remainingHours % 24)
+    return `${days}天${hours}小时后升级`
+  }
+}
+
+// 获取温养加成信息
+function getNourishBonus(fabao) {
+  const bonus = fabaoStore.calculateNourishBonus(fabao.id)
+  return {
+    attack: Math.floor(bonus.attack),
+    defense: Math.floor(bonus.defense),
+    hp: Math.floor(bonus.hp)
+  }
+}
+
+// 温养等级颜色
+function nourishLevelColor(level) {
+  if (level >= 6) return '#ffd700' // 金色
+  if (level >= 3) return '#a855f7' // 紫色
+  return '#60a5fa' // 蓝色
+}
+
+// 开始温养
+async function startNourish(fabao) {
+  const result = await fabaoStore.startNourish(fabao.id)
+  if (result.success) {
+    alert(`✨ 开始温养法宝「${fabao.name}」`)
+  } else {
+    alert(`温养失败：${result.reason}`)
+  }
+}
+
+// 停止温养
+async function stopNourish(fabao) {
+  if (!confirm(`确定停止温养「${fabao.name}」吗？`)) return
+  
+  const result = await fabaoStore.stopNourish(fabao.id)
+  
+  if (result.success) {
+    const hours = Math.floor(result.accumulatedSeconds / 3600)
+    const days = Math.floor(hours / 24)
+    alert(
+      `已停止温养「${fabao.name}」\n\n` +
+      `累积温养时间：${days}天${hours % 24}小时\n` +
+      `当前温养等级：Lv.${result.level}`
+    )
+  } else {
+    alert(`停止温养失败：${result.reason}`)
   }
 }
 
@@ -1502,8 +1690,195 @@ h1 {
 
 .btn-repair:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(243, 156, 18, 0.5);
-  background: linear-gradient(135deg, #e67e22 0%, #d35400 100%);
+  box-shadow: 0 4px 10px rgba(243, 156, 18, 0.4);
+}
+
+/* 温养信息 */
+.nourish-info {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  background: linear-gradient(135deg, rgba(147, 51, 234, 0.1) 0%, rgba(79, 70, 229, 0.1) 100%);
+  border: 1px solid rgba(147, 51, 234, 0.3);
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+}
+
+.nourish-header {
+  margin-bottom: 0.5rem;
+}
+
+.nourish-badge {
+  font-size: 0.85rem;
+  font-weight: bold;
+  text-shadow: 0 0 8px currentColor;
+  display: inline-block;
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* 强化等级徽章 */
+.enhance-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  margin-left: 6px;
+  background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+  color: white;
+  font-size: 0.75rem;
+  font-weight: bold;
+  border-radius: 4px;
+  vertical-align: middle;
+  box-shadow: 0 2px 4px rgba(238, 90, 82, 0.3);
+}
+
+.name-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.fabao-name {
+  font-weight: bold;
+  font-size: 1.1rem;
+}
+
+.realm-text {
+  color: #888;
+  font-size: 0.9rem;
+  margin-left: 2px;
+}
+
+.realm-rarity {
+  font-size: 0.85rem;
+  color: #999;
+  margin-top: 2px;
+}
+
+.card-header {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+/* 稀有度徽章（右上角） */
+.rarity-badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  padding: 3px 8px;
+  font-size: 0.7rem;
+  font-weight: bold;
+  border-radius: 0 8px 0 8px;
+  color: white;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* 不同稀有度的颜色 */
+.rarity-badge.rarity-common {
+  background: linear-gradient(135deg, #95a5a6, #7f8c8d);
+}
+
+.rarity-badge.rarity-fine {
+  background: linear-gradient(135deg, #3498db, #2980b9);
+}
+
+.rarity-badge.rarity-rare {
+  background: linear-gradient(135deg, #9b59b6, #8e44ad);
+}
+
+.rarity-badge.rarity-epic {
+  background: linear-gradient(135deg, #e74c3c, #c0392b);
+}
+
+.rarity-badge.rarity-legendary {
+  background: linear-gradient(135deg, #f39c12, #e67e22);
+}
+
+.rarity-badge.rarity-mythic {
+  background: linear-gradient(135deg, #1abc9c, #16a085);
+}
+
+@keyframes nourish-glow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.nourish-progress-bar {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 0.5rem;
+}
+
+.nourish-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #60a5fa, #a855f7, #fbbf24);
+  transition: width 0.5s ease-out;
+  box-shadow: 0 0 8px rgba(168, 85, 247, 0.6);
+}
+
+.nourish-time {
+  font-size: 0.7rem;
+  color: #a855f7;
+  margin-bottom: 0.5rem;
+  text-align: center;
+}
+
+.nourish-bonus {
+  display: flex;
+  justify-content: space-around;
+  font-size: 0.75rem;
+  color: #fbbf24;
+  font-weight: bold;
+  border-top: 1px solid rgba(251, 191, 36, 0.2);
+  padding-top: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.bonus-icon {
+  margin-right: 0.25rem;
+}
+
+/* 温养控制按钮 */
+.nourish-controls {
+  margin-top: 0.5rem;
+}
+
+.btn-nourish-start,
+.btn-nourish-stop {
+  width: 100%;
+  padding: 0.6rem 1rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-nourish-start {
+  background: linear-gradient(135deg, #a855f7 0%, #9333ea 100%);
+  color: white;
+  box-shadow: 0 2px 6px rgba(168, 85, 247, 0.3);
+}
+
+.btn-nourish-start:hover {
+  background: linear-gradient(135deg, #9333ea 0%, #7e22ce 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(168, 85, 247, 0.5);
+}
+
+.btn-nourish-stop {
+  background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+  color: white;
+  box-shadow: 0 2px 6px rgba(75, 85, 99, 0.3);
+}
+
+.btn-nourish-stop:hover {
+  background: linear-gradient(135deg, #4b5563 0%, #374151 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(75, 85, 99, 0.5);
 }
 
 .btn-repair:active {

@@ -103,11 +103,26 @@ export const useFabaoStore = defineStore('fabao', () => {
                 const rarityConfig = getRarityConfig(instance.rarity)
                 const realmConfig = getRealmConfig(instance.realm)
 
-                // 计算温养加成
-                const nourishBonus = calculateNourishBonus(instance)
+                // 数据库中的属性是基础属性（已包含强化等）
+                const baseAttack = instance.attack
+                const baseDefense = instance.defense
+                const baseMaxHp = instance.max_hp
+                const baseHp = instance.hp
 
-                // 计算最终属性
-                const finalStats = calculateFinalStats(instance, staticData, rarityConfig, nourishBonus)
+                // 计算温养加成（每级2%）
+                const nourishLevel = instance.nourish_level || 0
+                const nourishMultiplier = 1 + (nourishLevel * 0.02)
+
+                // 计算最终属性（基础 * (1 + 温养加成)）
+                const finalAttack = Math.floor(baseAttack * nourishMultiplier)
+                const finalDefense = Math.floor(baseDefense * nourishMultiplier)
+                const finalMaxHp = Math.floor(baseMaxHp * nourishMultiplier)
+
+                // 当前生命值按比例提升，保持生命值百分比不变
+                // 例如：如果原来是 110/110 (100%)，提升后应该是 118/118 (100%)
+                // 如果原来是 80/110 (72.7%)，提升后应该是 86/118 (72.7%)
+                const hpPercentage = baseMaxHp > 0 ? baseHp / baseMaxHp : 1
+                const finalHp = Math.ceil(finalMaxHp * hpPercentage)
 
                 // 映射数据库字段名（snake_case）到前端字段名（camelCase）
                 const fabao = {
@@ -119,7 +134,7 @@ export const useFabaoStore = defineStore('fabao', () => {
                     isDamaged: instance.is_damaged || false,
                     isSummoned: instance.is_summoned || false,
                     dantianPosition: instance.dantian_position || null,
-                    nourishLevel: instance.nourish_level || 0,
+                    nourishLevel: nourishLevel,
                     nourishStartTime: instance.nourish_start_time,
                     enhanceLevel: instance.enhance_level || 0,
                     maxEnhanceLevel: instance.max_enhance_level || 5,
@@ -127,10 +142,19 @@ export const useFabaoStore = defineStore('fabao', () => {
                     originalGridCount: instance.original_grid_count,
                     currentGridCount: instance.current_grid_count,
 
+                    // 保留基础属性（不含温养加成）
+                    base_attack: instance.attack,
+                    base_defense: instance.defense,
+                    base_max_hp: instance.max_hp,
+
+                    // 最终属性（包含温养加成） - 这些是战斗中实际使用的值
+                    attack: finalAttack,
+                    defense: finalDefense,
+                    max_hp: finalMaxHp,
+                    hp: finalHp,
+
                     rarityConfig,        // 稀有度配置
                     realmConfig,         // 境界配置
-                    nourishBonus,        // 温养加成
-                    finalStats,          // 最终属性
 
                     // 兼容字段（保留 snake_case 以防万一）
                     is_in_dantian: instance.is_in_dantian,
@@ -142,6 +166,14 @@ export const useFabaoStore = defineStore('fabao', () => {
                 // 打印加载的法宝信息
                 if (fabao.isInDantian) {
                     console.log(`  - 法宝 ${fabao.name} 在丹田中，位置:`, fabao.dantianPosition)
+                }
+
+                // 打印温养加成信息
+                if (nourishLevel > 0) {
+                    console.log(`  - 法宝 ${fabao.name} 温养 Lv.${nourishLevel}，` +
+                        `攻击: ${baseAttack} → ${finalAttack} (+${finalAttack - baseAttack})，` +
+                        `防御: ${baseDefense} → ${finalDefense} (+${finalDefense - baseDefense})，` +
+                        `生命: ${baseMaxHp} → ${finalMaxHp} (+${finalMaxHp - baseMaxHp})`)
                 }
 
                 return fabao
@@ -540,37 +572,40 @@ export const useFabaoStore = defineStore('fabao', () => {
     // ==================== 辅助函数 ====================
 
     /**
-     * 计算温养加成
+     * 计算温养加成（基于累积时间）
      */
     function calculateNourishBonus(instance) {
-        if (!instance.nourish_start_time) {
-            return { level: 0, hpBonus: 0, attackBonus: 0, defenseBonus: 0 }
+        // 计算总累积时间（秒）
+        let totalSeconds = instance.nourish_accumulated_seconds || 0
+
+        // 如果正在温养中，加上当前这次的时间
+        if (instance.nourish_start_time) {
+            const now = new Date().getTime()
+            const startTime = new Date(instance.nourish_start_time).getTime()
+            const currentElapsed = (now - startTime) / 1000  // 秒
+            totalSeconds += currentElapsed
         }
 
-        const now = new Date().getTime()
-        const startTime = new Date(instance.nourish_start_time).getTime()
-        const elapsed = (now - startTime) / 1000  // 秒
-
-        // 温养等级（每24小时升1级）
+        // 温养等级（每24小时升1级，累计计算）
         const levelUpTime = [
             24 * 3600,   // 0→1级: 1天
-            48 * 3600,   // 1→2级: 2天
-            72 * 3600,   // 2→3级: 3天
-            96 * 3600,   // 3→4级: 4天
-            120 * 3600,  // 4→5级: 5天
-            144 * 3600,  // 5→6级: 6天
-            168 * 3600,  // 6→7级: 7天
-            192 * 3600,  // 7→8级: 8天
-            216 * 3600,  // 8→9级: 9天
-            240 * 3600   // 9→10级: 10天
+            48 * 3600,   // 1→2级: 累计2天
+            72 * 3600,   // 2→3级: 累计3天
+            96 * 3600,   // 3→4级: 累计4天
+            120 * 3600,  // 4→5级: 累计5天
+            144 * 3600,  // 5→6级: 累计6天
+            168 * 3600,  // 6→7级: 累计7天
+            192 * 3600,  // 7→8级: 累计8天
+            216 * 3600,  // 8→9级: 累计9天
+            240 * 3600   // 9→10级: 累计10天
         ]
 
         let level = 0
-        let cumulativeTime = 0
         for (let i = 0; i < levelUpTime.length; i++) {
-            cumulativeTime += levelUpTime[i]
-            if (elapsed >= cumulativeTime) {
+            if (totalSeconds >= levelUpTime[i]) {
                 level = i + 1
+            } else {
+                break
             }
         }
 
@@ -583,6 +618,7 @@ export const useFabaoStore = defineStore('fabao', () => {
 
         return {
             level,
+            totalSeconds,
             hpBonus: level * bonusPerLevel.hp,
             attackBonus: level * bonusPerLevel.attack,
             defenseBonus: level * bonusPerLevel.defense
@@ -615,6 +651,193 @@ export const useFabaoStore = defineStore('fabao', () => {
         return count
     }
 
+    /**
+     * 计算温养加成
+     */
+    function calculateNourishBonus(fabaoId) {
+        const fabao = fabaos.value.find(f => f.id === fabaoId)
+        if (!fabao || !fabao.nourish_level) {
+            return { attack: 0, defense: 0, hp: 0 }
+        }
+
+        // 每级温养提供的加成百分比
+        const bonusPerLevel = 0.02 // 2%每级
+        const totalBonus = fabao.nourish_level * bonusPerLevel
+
+        // 使用基础属性计算加成，避免循环计算
+        return {
+            attack: Math.floor((fabao.base_attack || fabao.attack) * totalBonus),
+            defense: Math.floor((fabao.base_defense || fabao.defense) * totalBonus),
+            hp: Math.floor((fabao.base_max_hp || fabao.max_hp) * totalBonus)
+        }
+    }
+
+    /**
+     * 更新温养等级（基于累积时间自动升级）
+     */
+    async function updateNourishLevel(fabaoId) {
+        const fabao = fabaos.value.find(f => f.id === fabaoId)
+        if (!fabao) return
+
+        // 直接计算温养等级（使用累积时间计算，而不是调用第二个同名函数）
+        let totalSeconds = fabao.nourish_accumulated_seconds || 0
+
+        // 如果正在温养中，加上当前这次的时间
+        if (fabao.nourish_start_time) {
+            const now = new Date().getTime()
+            const startTime = new Date(fabao.nourish_start_time).getTime()
+            const currentElapsed = (now - startTime) / 1000  // 秒
+            totalSeconds += currentElapsed
+        }
+
+        // 温养等级（每24小时升1级，累计计算）
+        const levelUpTime = [
+            24 * 3600,   // 0→1级: 1天
+            48 * 3600,   // 1→2级: 累计2天
+            72 * 3600,   // 2→3级: 累计3天
+            96 * 3600,   // 3→4级: 累计4天
+            120 * 3600,  // 4→5级: 累计5天
+            144 * 3600,  // 5→6级: 累计6天
+            168 * 3600,  // 6→7级: 累计7天
+            192 * 3600,  // 7→8级: 累计8天
+            216 * 3600,  // 8→9级: 累计9天
+            240 * 3600   // 9→10级: 累计10天
+        ]
+
+        let newLevel = 0
+        for (let i = 0; i < levelUpTime.length; i++) {
+            if (totalSeconds >= levelUpTime[i]) {
+                newLevel = i + 1
+            } else {
+                break
+            }
+        }
+
+        // 如果等级变化了，更新数据库
+        if (newLevel !== fabao.nourish_level) {
+            const { error } = await supabase
+                .from('fabao_instances')
+                .update({ nourish_level: newLevel })
+                .eq('id', fabaoId)
+
+            if (!error) {
+                fabao.nourish_level = newLevel
+                fabao.nourishLevel = newLevel
+                console.log(`[updateNourishLevel] 法宝 ${fabao.name} 温养等级提升至 ${newLevel}`)
+            }
+        }
+    }
+
+    /**
+     * 开始温养法宝
+     */
+    async function startNourish(fabaoId) {
+        const fabao = fabaos.value.find(f => f.id === fabaoId)
+        if (!fabao) {
+            return { success: false, reason: '法宝不存在' }
+        }
+
+        if (fabao.isDamaged) {
+            return { success: false, reason: '法宝已损毁，无法温养' }
+        }
+
+        if (!fabao.isInDantian) {
+            return { success: false, reason: '法宝需要在丹田中才能温养' }
+        }
+
+        if (fabao.nourish_start_time) {
+            return { success: false, reason: '法宝已在温养中' }
+        }
+
+        // 设置温养开始时间（不重置累积时间）
+        const now = new Date().toISOString()
+
+        const { error } = await supabase
+            .from('fabao_instances')
+            .update({
+                nourish_start_time: now
+            })
+            .eq('id', fabaoId)
+
+        if (error) {
+            console.error('[startNourish] 数据库错误:', error)
+            return { success: false, reason: '数据库更新失败' }
+        }
+
+        // 更新本地状态
+        fabao.nourish_start_time = now
+        fabao.nourishStartTime = now
+
+        return { success: true }
+    }
+
+    /**
+     * 停止温养法宝（保存累积时间）
+     */
+    async function stopNourish(fabaoId) {
+        const fabao = fabaos.value.find(f => f.id === fabaoId)
+        if (!fabao || !fabao.nourish_start_time) {
+            return { success: false, reason: '法宝未在温养中' }
+        }
+
+        // 计算本次温养时长
+        const now = new Date().getTime()
+        const startTime = new Date(fabao.nourish_start_time).getTime()
+        const elapsed = Math.floor((now - startTime) / 1000)  // 秒
+
+        // 累加到总时间
+        const accumulatedSeconds = (fabao.nourish_accumulated_seconds || 0) + elapsed
+
+        // 直接计算温养等级（使用累积时间计算）
+        const levelUpTime = [
+            24 * 3600,   // 0→1级: 1天
+            48 * 3600,   // 1→2级: 累计2天
+            72 * 3600,   // 2→3级: 累计3天
+            96 * 3600,   // 3→4级: 累计4天
+            120 * 3600,  // 4→5级: 累计5天
+            144 * 3600,  // 5→6级: 累计6天
+            168 * 3600,  // 6→7级: 累计7天
+            192 * 3600,  // 7→8级: 累计8天
+            216 * 3600,  // 8→9级: 累计9天
+            240 * 3600   // 9→10级: 累计10天
+        ]
+
+        let newLevel = 0
+        for (let i = 0; i < levelUpTime.length; i++) {
+            if (accumulatedSeconds >= levelUpTime[i]) {
+                newLevel = i + 1
+            } else {
+                break
+            }
+        }
+
+        // 更新数据库：保存累积时间、清除开始时间、更新等级
+        const { error } = await supabase
+            .from('fabao_instances')
+            .update({
+                nourish_start_time: null,
+                nourish_accumulated_seconds: accumulatedSeconds,
+                nourish_level: newLevel
+            })
+            .eq('id', fabaoId)
+
+        if (error) {
+            console.error('[stopNourish] 数据库错误:', error)
+            return { success: false, reason: '数据库更新失败' }
+        }
+
+        // 更新本地状态
+        fabao.nourish_start_time = null
+        fabao.nourishStartTime = null
+        fabao.nourish_accumulated_seconds = accumulatedSeconds
+        fabao.nourish_level = newLevel
+        fabao.nourishLevel = newLevel
+
+        console.log(`[stopNourish] 法宝 ${fabao.name} 停止温养，累积 ${accumulatedSeconds} 秒，等级 ${newLevel}`)
+
+        return { success: true, accumulatedSeconds, level: newLevel }
+    }
+
     return {
         fabaos,
         loading,
@@ -627,10 +850,14 @@ export const useFabaoStore = defineStore('fabao', () => {
         fetchFabaos,
         addFabao,
         placeFabaoInDantian,
-        summonFabao,
-        damageFabao,
-        repairFabao,
         calculateRepairCost,
-        enhanceFabao
+        repairFabao,
+        enhanceFabao,
+        calculateNourishBonus,
+        updateNourishLevel,
+        startNourish,
+        stopNourish,
+        summonFabao,
+        damageFabao
     }
 })

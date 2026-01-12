@@ -1,160 +1,247 @@
-
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { supabase } from '../supabase/client'
 import { useCharacterStore } from './character'
-import { useInventoryStore } from './inventory'
-import { quests, getQuestById } from '../data/quests'
+import { getQuestById, QuestStatus, canAcceptQuest, isQuestComplete } from '../data/quests'
 
 export const useQuestStore = defineStore('quest', () => {
-    const activeQuests = ref([]) // Active or Completed (but not finished)
-    const historyQuests = ref([]) // Finished
-    const availableQuests = ref([]) // Quests available to pick up
+    const characterStore = useCharacterStore()
+
+    // 玩家任务列表（从数据库加载）
+    const playerQuests = ref([])
     const loading = ref(false)
 
-    const characterStore = useCharacterStore()
-    const inventoryStore = useInventoryStore()
+    // 已完成的任务ID列表
+    const completedQuestIds = computed(() => {
+        return playerQuests.value
+            .filter(q => q.status === QuestStatus.FINISHED)
+            .map(q => q.quest_id)
+    })
 
+    // 进行中的任务
+    const activeQuests = computed(() => {
+        return playerQuests.value.filter(q =>
+            q.status === QuestStatus.ACTIVE || q.status === QuestStatus.COMPLETED
+        )
+    })
+
+    // 可接取的任务（暂时返回空数组）
+    const availableQuests = computed(() => {
+        return []
+    })
+
+    // 历史任务
+    const historyQuests = computed(() => {
+        return playerQuests.value.filter(q => q.status === QuestStatus.FINISHED)
+    })
+
+    /**
+     * 加载玩家任务
+     */
     async function fetchQuests() {
         if (!characterStore.character) return
 
-        loading.value = true
-        const { data: userQuests, error } = await supabase
-            .from('character_quests')
+        const { data, error } = await supabase
+            .from('player_quests')
             .select('*')
             .eq('character_id', characterStore.character.id)
 
         if (error) {
-            console.error('Error fetching quests:', error)
-            loading.value = false
-            return
+            console.error('[Quest] 加载任务失败:', error)
+        } else {
+            playerQuests.value = data || []
         }
-
-        // Separate into lists
-        activeQuests.value = []
-        historyQuests.value = []
-
-        const userQuestIds = new Set()
-
-        userQuests.forEach(uq => {
-            userQuestIds.add(uq.quest_id)
-            const staticData = getQuestById(uq.quest_id)
-            if (!staticData) return // Skip if data missing
-
-            const fullQuest = { ...staticData, ...uq }
-            if (uq.status === 'finished') {
-                historyQuests.value.push(fullQuest)
-            } else {
-                activeQuests.value.push(fullQuest)
-            }
-        })
-
-        // Determine available quests (Not in userQuests)
-        // In a real game we would check level requirements or pre-requisites
-        availableQuests.value = quests.filter(q => !userQuestIds.has(q.id))
-
-        loading.value = false
     }
 
+    /**
+     * 接取任务
+     */
     async function acceptQuest(questId) {
-        if (!characterStore.character) return
+        if (!characterStore.character) return false
 
+        const quest = getQuestById(questId)
+        if (!quest) return false
+
+        // 检查是否可接取
+        const playerLevel = characterStore.character.level
+        if (!canAcceptQuest(quest, playerLevel, completedQuestIds.value)) {
+            return false
+        }
+
+        // 检查是否已接取
+        const existing = playerQuests.value.find(q => q.quest_id === questId)
+        if (existing) return false
+
+        // 插入数据库
         const { data, error } = await supabase
-            .from('character_quests')
+            .from('player_quests')
             .insert({
                 character_id: characterStore.character.id,
                 quest_id: questId,
-                progress: 0,
-                status: 'active'
+                status: QuestStatus.ACTIVE,
+                objectives: quest.objectives
             })
             .select()
             .single()
 
         if (error) {
-            alert('接受任务失败')
-            console.error(error)
-        } else {
-            const staticData = getQuestById(questId)
-            activeQuests.value.push({ ...staticData, ...data })
-            availableQuests.value = availableQuests.value.filter(q => q.id !== questId)
-            alert(`接受了任务: ${staticData.title}`)
+            console.error('[Quest] 接取任务失败:', error)
+            return false
         }
+
+        playerQuests.value.push(data)
+        console.log('[Quest] 接取任务成功:', quest.name)
+        return true
     }
 
-    async function updateProgress(monsterId) {
-        // Find active quests that target this monster
-        const targets = activeQuests.value.filter(q =>
-            q.status === 'active' &&
-            q.target.type === 'kill' &&
-            q.target.monsterId === monsterId
-        )
+    /**
+     * 更新任务进度
+     */
+    async function updateQuestProgress(questId, objectiveIndex, newCurrent) {
+        const playerQuest = playerQuests.value.find(q => q.quest_id === questId)
+        if (!playerQuest) return
 
-        if (targets.length === 0) return
+        const objectives = [...playerQuest.objectives]
+        objectives[objectiveIndex].current = newCurrent
 
-        for (const quest of targets) {
-            if (quest.progress < quest.target.count) {
-                const newProgress = quest.progress + 1
-                let newStatus = 'active'
-                if (newProgress >= quest.target.count) {
-                    newStatus = 'completed' // Ready for turn-in
-                    alert(`任务完成: ${quest.title}! 请前往任务列表领取奖励。`)
-                }
+        // 检查是否完成
+        const quest = getQuestById(questId)
+        const allComplete = objectives.every(obj => obj.current >= obj.required)
+        const newStatus = allComplete ? QuestStatus.COMPLETED : QuestStatus.ACTIVE
 
-                // Optimistic update
-                quest.progress = newProgress
-                quest.status = newStatus
+        // 更新数据库
+        const { error } = await supabase
+            .from('player_quests')
+            .update({
+                objectives,
+                status: newStatus
+            })
+            .eq('id', playerQuest.id)
 
-                // DB Update
-                await supabase
-                    .from('character_quests')
-                    .update({
-                        progress: newProgress,
-                        status: newStatus,
-                        updated_at: new Date()
-                    })
-                    .eq('id', quest.id) // quest.id is the Row UUID here because we merged it in fetchQuests/acceptQuest
+        if (!error) {
+            playerQuest.objectives = objectives
+            playerQuest.status = newStatus
+
+            if (allComplete) {
+                console.log('[Quest] 任务完成:', quest.name)
             }
         }
     }
 
-    async function claimReward(quest) {
-        if (quest.status !== 'completed') return
-
-        // 1. Give Exp
-        const newExp = characterStore.character.exp + quest.reward.exp
-        // Note: Level up logic is currently duplicated in CombatStore. 
-        // Ideally should be a method in CharacterStore. For now just update EXP.
-        await supabase.from('characters').update({ exp: newExp }).eq('id', characterStore.character.id)
-        characterStore.character.exp = newExp
-
-        // 2. Give Items
-        for (const item of quest.reward.items) {
-            await inventoryStore.addItem(item.id, item.count)
+    /**
+     * 交付任务（领取奖励）
+     */
+    async function completeQuest(questId) {
+        const playerQuest = playerQuests.value.find(q => q.quest_id === questId)
+        if (!playerQuest || playerQuest.status !== QuestStatus.COMPLETED) {
+            return false
         }
 
-        // 3. Mark Finished
+        const quest = getQuestById(questId)
+        if (!quest) return false
+
+        // 发放奖励
+        const rewards = quest.rewards
+
+        // 经验
+        if (rewards.exp) {
+            // TODO: 添加经验（需要character store支持）
+            console.log('[Quest] 获得经验:', rewards.exp)
+        }
+
+        // 灵石
+        if (rewards.silver) {
+            await characterStore.gainSilver(rewards.silver)
+        }
+
+        // 物品
+        if (rewards.items) {
+            const { useInventoryStore } = await import('./inventory')
+            const inventoryStore = useInventoryStore()
+
+            for (const item of rewards.items) {
+                await inventoryStore.addItem(item.id, item.quantity)
+            }
+        }
+
+        // 更新任务状态
         const { error } = await supabase
-            .from('character_quests')
-            .update({ status: 'finished', updated_at: new Date() })
-            .eq('id', quest.id)
+            .from('player_quests')
+            .update({ status: QuestStatus.FINISHED })
+            .eq('id', playerQuest.id)
 
         if (!error) {
-            quest.status = 'finished'
-            // Move to history
-            activeQuests.value = activeQuests.value.filter(q => q.id !== quest.id)
-            historyQuests.value.push(quest)
-            alert(`领取成功! 获得 ${quest.reward.exp} 经验和奖励物品。`)
+            playerQuest.status = QuestStatus.FINISHED
+            console.log('[Quest] 任务交付成功:', quest.name)
+            return true
         }
+
+        return false
+    }
+
+    /**
+     * 检查并更新任务进度（战斗后调用）
+     */
+    function checkKillQuests() {
+        activeQuests.value.forEach(playerQuest => {
+            const quest = getQuestById(playerQuest.quest_id)
+            if (!quest) return
+
+            quest.objectives.forEach((obj, index) => {
+                if (obj.type === 'kill_monsters') {
+                    const current = playerQuest.objectives[index].current
+                    updateQuestProgress(playerQuest.quest_id, index, current + 1)
+                }
+            })
+        })
+    }
+
+    /**
+     * 检查采集任务
+     */
+    function checkCollectQuest(itemId) {
+        activeQuests.value.forEach(playerQuest => {
+            const quest = getQuestById(playerQuest.quest_id)
+            if (!quest) return
+
+            quest.objectives.forEach((obj, index) => {
+                if (obj.type === 'collect_items' && obj.target === itemId) {
+                    const current = playerQuest.objectives[index].current
+                    updateQuestProgress(playerQuest.quest_id, index, current + 1)
+                }
+            })
+        })
+    }
+
+    /**
+     * 检查访问地点任务
+     */
+    function checkVisitQuest(locationId) {
+        activeQuests.value.forEach(playerQuest => {
+            const quest = getQuestById(playerQuest.quest_id)
+            if (!quest) return
+
+            quest.objectives.forEach((obj, index) => {
+                if (obj.type === 'visit_location' && obj.target === locationId) {
+                    updateQuestProgress(playerQuest.quest_id, index, 1)
+                }
+            })
+        })
     }
 
     return {
-        activeQuests,
-        historyQuests,
-        availableQuests,
+        playerQuests,
         loading,
+        completedQuestIds,
+        activeQuests,
+        availableQuests,
+        historyQuests,
         fetchQuests,
         acceptQuest,
-        updateProgress,
-        claimReward
+        updateQuestProgress,
+        completeQuest,
+        checkKillQuests,
+        checkCollectQuest,
+        checkVisitQuest
     }
 })

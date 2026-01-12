@@ -220,6 +220,34 @@ export const useInventoryStore = defineStore('inventory', () => {
         char.defense = newDefense
     }
 
+    /**
+     * 更新物品数量
+     */
+    async function updateItemQuantity(inventoryItemId, newQuantity) {
+        const item = inventory.value.find(i => i.id === inventoryItemId)
+        if (!item) return
+
+        if (newQuantity <= 0) {
+            // 删除物品
+            await supabase
+                .from('inventory')
+                .delete()
+                .eq('id', inventoryItemId)
+
+            inventory.value = inventory.value.filter(i => i.id !== inventoryItemId)
+        } else {
+            // 更新数量
+            const { error } = await supabase
+                .from('inventory')
+                .update({ quantity: newQuantity })
+                .eq('id', inventoryItemId)
+
+            if (!error) {
+                item.quantity = newQuantity
+            }
+        }
+    }
+
     return {
         inventory,
         loading,
@@ -227,6 +255,7 @@ export const useInventoryStore = defineStore('inventory', () => {
         addItem,
         useItem,
         equipItem,
-        unequipItem
+        unequipItem,
+        updateItemQuantity
     }
 })

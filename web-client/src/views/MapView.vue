@@ -8,6 +8,10 @@ import { useInventoryStore } from '../stores/inventory'
 import { maps, areas, getMapById, getConnectedMaps, getUnlockedMaps } from '../data/maps'
 import { mapPositions } from '../data/mapPositions'
 import { getItemById } from '../data/items'
+import { getNpcsByLocation } from '../data/npcs'
+import NpcDialog from '../components/NpcDialog.vue'
+import ShopDialog from '../components/ShopDialog.vue'
+import QuestListDialog from '../components/QuestListDialog.vue'
 
 const router = useRouter()
 const gameStore = useGameStore()
@@ -16,6 +20,45 @@ const characterStore = useCharacterStore()
 
 const currentMap = computed(() => getMapById(gameStore.currentLocationId))
 const connections = computed(() => getConnectedMaps(gameStore.currentLocationId))
+
+// NPC系统
+const currentNpcs = computed(() => getNpcsByLocation(gameStore.currentLocationId))
+const selectedNpc = ref(null)
+const showNpcDialog = ref(false)
+const showShop = ref(false)
+const showQuestList = ref(false)
+
+const openNpcDialog = (npc) => {
+    selectedNpc.value = npc
+    showNpcDialog.value = true
+}
+
+const closeNpcDialog = () => {
+    showNpcDialog.value = false
+    selectedNpc.value = null
+}
+
+const openShop = (npc) => {
+    showNpcDialog.value = false
+    selectedNpc.value = npc
+    showShop.value = true
+}
+
+const closeShop = () => {
+    showShop.value = false
+    selectedNpc.value = null
+}
+
+const openQuestList = (npc) => {
+    showNpcDialog.value = false
+    selectedNpc.value = npc
+    showQuestList.value = true
+}
+
+const closeQuestList = () => {
+    showQuestList.value = false
+    selectedNpc.value = null
+}
 
 // 获取解锁的地图
 const unlockedMaps = computed(() => {
@@ -253,13 +296,18 @@ const visibleMaps = computed(() => {
             </div>
           </div>
 
-          <!-- NPC信息 -->
-          <div class="npcs-info" v-if="currentMap.npcs?.length">
-            <h4>💬 NPC：</h4>
+          <!-- NPC列表 -->
+          <div class="npcs-section" v-if="currentNpcs.length > 0">
+            <h4>💬 此地NPC：</h4>
             <div class="npc-list">
-              <span v-for="npc in currentMap.npcs" :key="npc" class="npc-item">
-                {{ npc }}
-              </span>
+              <button 
+                v-for="npc in currentNpcs" 
+                :key="npc.id"
+                class="npc-button"
+                @click="openNpcDialog(npc)">
+                <span class="npc-avatar-small">{{ npc.avatar }}</span>
+                <span class="npc-name-small">{{ npc.name }}</span>
+              </button>
             </div>
           </div>
 
@@ -412,6 +460,29 @@ const visibleMaps = computed(() => {
         <button class="btn-close" @click="closeResult">确定</button>
       </div>
     </div>
+
+    <!-- NPC对话框 -->
+    <NpcDialog 
+      v-if="showNpcDialog && selectedNpc"
+      :npc="selectedNpc"
+      @close="closeNpcDialog"
+      @openShop="openShop"
+      @viewQuests="openQuestList"
+    />
+
+    <!-- 商店界面 -->
+    <ShopDialog 
+      v-if="showShop && selectedNpc"
+      :npc="selectedNpc"
+      @close="closeShop"
+    />
+
+    <!-- 任务列表 -->
+    <QuestListDialog 
+      v-if="showQuestList && selectedNpc"
+      :npc="selectedNpc"
+      @close="closeQuestList"
+    />
   </div>
 </template>
 
@@ -1021,6 +1092,51 @@ const visibleMaps = computed(() => {
 .btn-close:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(100, 255, 218, 0.4);
+}
+
+/* NPC列表样式 */
+.npcs-section {
+  margin: 1rem 0;
+}
+
+.npcs-section h4 {
+  font-size: 0.9rem;
+  color: #718096;
+  margin-bottom: 0.5rem;
+}
+
+.npc-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.npc-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  background: rgba(243, 156, 18, 0.1);
+  border: 1px solid rgba(243, 156, 18, 0.3);
+  border-radius: 20px;
+  color: #f39c12;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.npc-button:hover {
+  background: rgba(243, 156, 18, 0.2);
+  border-color: #f39c12;
+  transform: translateY(-2px);
+}
+
+.npc-avatar-small {
+  font-size: 1.2rem;
+}
+
+.npc-name-small {
+  font-weight: bold;
 }
 
 @media (max-width: 1200px) {

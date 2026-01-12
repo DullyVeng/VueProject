@@ -106,6 +106,49 @@ export const useCharacterStore = defineStore('character', () => {
         character.value.current_action_points = newAP
     }
 
+    /**
+     * 消费灵石
+     */
+    async function spendSilver(amount) {
+        if (!character.value) return false
+
+        const current = character.value.silver || 0
+        if (current < amount) {
+            return false
+        }
+
+        const newSilver = current - amount
+
+        const { error } = await supabase
+            .from('characters')
+            .update({ silver: newSilver })
+            .eq('id', character.value.id)
+
+        if (!error) {
+            character.value.silver = newSilver
+            return true
+        }
+
+        return false
+    }
+
+    /**
+     * 获得灵石
+     */
+    async function gainSilver(amount) {
+        if (!character.value) return
+
+        const current = character.value.silver || 0
+        const newSilver = current + amount
+
+        await supabase
+            .from('characters')
+            .update({ silver: newSilver })
+            .eq('id', character.value.id)
+
+        character.value.silver = newSilver
+    }
+
     return {
         character,
         loading,
@@ -113,6 +156,8 @@ export const useCharacterStore = defineStore('character', () => {
         fetchCharacter,
         createCharacter,
         consumeActionPoints,
-        restoreActionPoints
+        restoreActionPoints,
+        spendSilver,
+        gainSilver
     }
 })

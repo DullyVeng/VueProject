@@ -2,7 +2,7 @@
 
 1. **需求拆分**  
  - 人类或 AI 拆分任务  
- - 记录到 `ai-docs/current/feature-xxx/task-list.md`
+ - 记录到 `ai-agent/current/feature-xxx/task-list.md`
 
 2. **任务执行**
  - 每个 Task 由主实现会话执行
@@ -19,16 +19,16 @@
 
 4. **进度更新**
  - 当前 Task 完成或会话上下文满时
- - 写入 `ai-docs/current/feature-xxx/progress.md`
+ - 写入 `ai-agent/current/feature-xxx/progress.md`
  - 可开启新会话继续任务
 
 5. **代码审查**
  - 每个 Task 完成后：
    - code-reviewer 进行 CR
    - 如遇复杂问题，调用 codex-cli / gemini-cli
- - 汇总结果写入 `ai-docs/current/feature-xxx/review.md`
+ - 汇总结果写入 `ai-agent/current/feature-xxx/review.md`
 
 6. **需求归档**
  - 所有任务完成后，将当前目录移动到：
-   `ai-docs/archive/feature-xxx/`
+   `ai-agent/archive/feature-xxx/`
  - 保留 task-list、progress、review、requirement 文档

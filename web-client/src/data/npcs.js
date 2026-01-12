@@ -1,0 +1,140 @@
+/**
+ * NPC数据配置
+ */
+
+export const npcs = [
+    // 起始镇 - 张掌柜（商人）
+    {
+        id: 'merchant_zhang',
+        name: '张掌柜',
+        type: 'merchant',
+        avatar: '👨‍💼',
+        location: 'town',
+        description: '经营杂货铺多年的老掌柜，什么都卖。',
+
+        dialogues: {
+            greeting: {
+                text: '欢迎光临！这位道友需要点什么？',
+                options: [
+                    { text: '💰 查看商品', action: 'open_shop' },
+                    { text: '💬 打听消息', next: 'info' },
+                    { text: '👋 告辞', action: 'close' }
+                ]
+            },
+            info: {
+                text: '最近森林里妖兽活动频繁，道友若要历练，需多加小心啊。',
+                options: [
+                    { text: '多谢提醒', next: 'greeting' },
+                    { text: '告辞', action: 'close' }
+                ]
+            }
+        },
+
+        shop: {
+            buyPriceMultiplier: 1.0,
+            sellPriceMultiplier: 0.5,
+            items: [
+                'potion_hp_small',
+                'potion_mp_small',
+                'sword_iron',
+                'robe_cloth',
+                'hat_bamboo'
+            ]
+        }
+    },
+
+    // 起始镇 - 李长老（信息NPC）
+    {
+        id: 'elder_li',
+        name: '李长老',
+        type: 'info',
+        avatar: '👴',
+        location: 'town',
+        description: '镇上德高望重的长老，知晓许多修仙界的秘闻。',
+
+        dialogues: {
+            greeting: {
+                text: '年轻人，修仙之路漫漫，切勿急功近利。',
+                options: [
+                    { text: '📜 查看任务', action: 'view_quests' },
+                    { text: '请教修炼之道', next: 'cultivation' },
+                    { text: '询问周边情况', next: 'map_info' },
+                    { text: '告辞', action: 'close' }
+                ]
+            },
+            cultivation: {
+                text: '修炼需循序渐进。多历练，多感悟，境界自然水到渠成。',
+                options: [
+                    { text: '受教了', next: 'greeting' },
+                    { text: '告辞', action: 'close' }
+                ]
+            },
+            map_info: {
+                text: '北面的迷雾森林适合初学者历练，东边的青石山则稍有难度。量力而行为好。',
+                options: [
+                    { text: '多谢指点', next: 'greeting' },
+                    { text: '告辞', action: 'close' }
+                ]
+            }
+        },
+
+        quests: ['quest_001', 'quest_003']
+    },
+
+    // 起始镇 - 任务发布者
+    {
+        id: 'quest_master',
+        name: '王执事',
+        type: 'quest_giver',
+        avatar: '📜',
+        location: 'town',
+        description: '负责发布各种委托任务的执事。',
+
+        dialogues: {
+            greeting: {
+                text: '道友可是来接任务的？',
+                options: [
+                    { text: '📜 查看任务', action: 'view_quests' },
+                    { text: '告辞', action: 'close' }
+                ]
+            }
+        },
+
+        quests: []
+    },
+
+    // 修仙坊市 - 炼丹师
+    {
+        id: 'alchemist_chen',
+        name: '陈炼丹师',
+        type: 'merchant',
+        avatar: '🧙',
+        location: 'market',
+        description: '擅长炼制各种丹药的炼丹师。',
+
+        dialogues: {
+            greeting: {
+                text: '需要丹药吗？我这里的丹药品质上乘。',
+                options: [
+                    { text: '💰 查看丹药', action: 'open_shop' },
+                    { text: '告辞', action: 'close' }
+                ]
+            }
+        },
+
+        shop: {
+            buyPriceMultiplier: 1.2,
+            sellPriceMultiplier: 0.6,
+            items: [
+                'potion_hp_small',
+                'potion_mp_small'
+            ]
+        }
+    }
+]
+
+// 根据ID获取NPC
+export const getNpcById = (id) => npcs.find(n => n.id === id)
+
+// 根据位置获取NPC列表
+export const getNpcsByLocation = (locationId) => npcs.filter(n => n.location === locationId)

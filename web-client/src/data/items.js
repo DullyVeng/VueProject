@@ -230,7 +230,113 @@ export const items = [
         description: '灵兽的皮毛，柔软且坚韧。',
         price: 35,
         icon: '🦊'
+    },
+
+    // ========== 宗门建设材料 ==========
+    {
+        id: 'wood',
+        name: '木材',
+        type: 'sect_material',
+        category: 'building',
+        description: '用于宗门建筑的基础木材。',
+        price: 2,
+        icon: '🪵'
+    },
+    {
+        id: 'stone',
+        name: '石料',
+        type: 'sect_material',
+        category: 'building',
+        description: '用于宗门建筑的基础石料。',
+        price: 2,
+        icon: '🪨'
+    },
+    {
+        id: 'jade',
+        name: '玉璧',
+        type: 'sect_material',
+        category: 'building',
+        description: '珍贵的玉石材料，用于高级建筑。',
+        price: 100,
+        icon: '💠'
+    },
+    {
+        id: 'formationFlag',
+        name: '阵旗',
+        type: 'sect_material',
+        category: 'building',
+        description: '布置阵法的核心材料。',
+        price: 50,
+        icon: '🚩'
+    },
+
+    // ========== 建筑图纸 ==========
+    {
+        id: 'blueprint_zhenfatang',
+        name: '阵法堂图纸',
+        type: 'blueprint',
+        category: 'sect',
+        buildingId: 'zhenFaTang',
+        description: '使用后解锁阵法堂建造。',
+        price: 500,
+        icon: '📜'
+    },
+    {
+        id: 'blueprint_cangbaoge',
+        name: '藏宝阁图纸',
+        type: 'blueprint',
+        category: 'sect',
+        buildingId: 'cangBaoGe',
+        description: '使用后解锁藏宝阁建造。',
+        price: 500,
+        icon: '📜'
+    },
+    {
+        id: 'blueprint_chuansongzhen',
+        name: '传送阵图纸',
+        type: 'blueprint',
+        category: 'sect',
+        buildingId: 'chuanSongZhen',
+        description: '使用后解锁传送阵建造。',
+        price: 800,
+        icon: '📜'
+    },
+    {
+        id: 'blueprint_mijingrukou',
+        name: '秘境入口图纸',
+        type: 'blueprint',
+        category: 'sect',
+        buildingId: 'miJingRuKou',
+        description: '使用后解锁秘境入口建造。',
+        price: 1000,
+        icon: '📜'
+    },
+    {
+        id: 'blueprint_julingzhen',
+        name: '聚灵阵图纸',
+        type: 'blueprint',
+        category: 'sect',
+        buildingId: 'juLingZhen',
+        description: '使用后解锁聚灵阵建造。',
+        price: 800,
+        icon: '📜'
+    },
+    {
+        id: 'blueprint_hushandazhen',
+        name: '护山大阵图纸',
+        type: 'blueprint',
+        category: 'sect',
+        buildingId: 'huShanDaZhen',
+        description: '使用后解锁护山大阵建造。',
+        price: 1500,
+        icon: '📜'
     }
 ]
 
 export const getItemById = (id) => items.find(i => i.id === id)
+
+// 获取所有宗门建设材料
+export const getSectMaterials = () => items.filter(i => i.type === 'sect_material')
+
+// 获取所有建筑图纸
+export const getBlueprints = () => items.filter(i => i.type === 'blueprint')

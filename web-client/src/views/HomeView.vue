@@ -42,6 +42,7 @@ const handleAttribute = () => router.push('/attribute')
 const handleQuests = () => router.push('/quests')
 const handleShop = () => router.push('/shop')
 const handleInn = () => router.push('/inn')
+const handleSect = () => router.push('/sect')
 
 </script>
 
@@ -80,6 +81,7 @@ const handleInn = () => router.push('/inn')
             @toggle-quests="handleQuests"
             @toggle-shop="handleShop"
             @toggle-inn="handleInn"
+            @toggle-sect="handleSect"
         />
 
     </div>

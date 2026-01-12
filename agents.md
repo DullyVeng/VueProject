@@ -10,7 +10,8 @@
 8. Geberate commit message时，务必要使用中文编写和汇报。
 9. 涉及到Supabase的数据库操作时，务必要使用Supabase MCP进行操作。
 10. 涉及到数据的验证时，可以调用supabase MCP进行数据验证。
-11. 调用supabase MCP时，不需要查询项目信息，直接调用该项目的supabase ID为：xufhdurllimdmymuplox
+11. 调用supabase MCP时，不需要查询项目信息，直接调用该项目的supabase ID为：xufhdurllimdmymuplox。
+12. 创建新的字段或者新的表时，SQL里的comment务必要写明字段的用途，表的用途，并且务必用中文。
 
 ## 游戏素材目录规范 (web-client/public/assets/game)
 

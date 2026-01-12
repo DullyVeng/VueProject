@@ -86,6 +86,12 @@ const router = createRouter({
             name: 'attribute',
             component: () => import('../views/AttributeView.vue'),
             meta: { requiresAuth: true }
+        },
+        {
+            path: '/sect',
+            name: 'sect',
+            component: () => import('../views/SectView.vue'),
+            meta: { requiresAuth: true }
         }
     ]
 })

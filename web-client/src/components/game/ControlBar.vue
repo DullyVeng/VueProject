@@ -1,5 +1,5 @@
 <script setup>
-const emit = defineEmits(['toggle-character', 'toggle-inventory', 'toggle-dantian', 'toggle-attribute', 'toggle-map', 'toggle-quests', 'toggle-shop', 'toggle-inn'])
+const emit = defineEmits(['toggle-character', 'toggle-inventory', 'toggle-dantian', 'toggle-attribute', 'toggle-map', 'toggle-quests', 'toggle-shop', 'toggle-inn', 'toggle-sect'])
 
 </script>
 
@@ -22,6 +22,9 @@ const emit = defineEmits(['toggle-character', 'toggle-inventory', 'toggle-dantia
     </button>
     <button class="btn-control" @click="$emit('toggle-map')" title="世界地图 (M)">
        <span class="icon">🌍</span>
+    </button>
+    <button class="btn-control sect-btn" @click="$emit('toggle-sect')" title="宗门 (G)">
+       <span class="icon">🏯</span>
     </button>
     <div class="divider"></div>
     <button class="btn-control" @click="$emit('toggle-shop')" title="百草阁">

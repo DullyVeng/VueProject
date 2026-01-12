@@ -244,6 +244,48 @@
               </div>
             </div>
             
+            <!-- 技能展示栏 -->
+            <div v-if="(fabao.spells && Array.isArray(fabao.spells)) || fabao.spell" class="skills-section">
+              <div class="skills-header">⚡ 技能列表</div>
+              <div class="skills-list">
+                <!-- 多技能展示 -->
+                <div v-if="fabao.spells && Array.isArray(fabao.spells)" class="skill-items">
+                  <div 
+                    v-for="spell in fabao.spells" 
+                    :key="spell.id"
+                    class="skill-item"
+                    :title="getSkillTooltip(spell, fabao.enhance_level || 0)"
+                  >
+                    <div class="skill-icon-large">{{ spell.icon }}</div>
+                    <div class="skill-details">
+                      <div class="skill-name">{{ spell.name }}</div>
+                      <div class="skill-description">{{ spell.description }}</div>
+                      <div class="skill-stats">
+                        <span class="skill-stat mp-cost">💙 {{ spell.mpCost }}MP</span>
+                        <span v-if="spell.baseDamage" class="skill-stat damage">⚔️ {{ calculateSkillValue(spell.baseDamage, fabao.enhance_level || 0) }}</span>
+                        <span v-if="spell.effects?.heal" class="skill-stat heal">❤️ {{ calculateSkillValue(spell.effects.heal, fabao.enhance_level || 0) }}</span>
+                        <span v-if="spell.effects?.defenseBonus" class="skill-stat defense">🛡️ +{{ calculateSkillValue(spell.effects.defenseBonus, fabao.enhance_level || 0) }}</span>
+                        <span v-if="fabao.enhance_level > 0" class="skill-level">Lv.{{ fabao.enhance_level }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <!-- 单技能展示（向后兼容） -->
+                <div v-else-if="fabao.spell" class="skill-item">
+                  <div class="skill-icon-large">{{ fabao.spell.icon }}</div>
+                  <div class="skill-details">
+                    <div class="skill-name">{{ fabao.spell.name }}</div>
+                    <div class="skill-description">{{ fabao.spell.description }}</div>
+                    <div class="skill-stats">
+                      <span class="skill-stat mp-cost">💙 {{ fabao.spell.mpCost }}MP</span>
+                      <span v-if="fabao.spell.baseDamage" class="skill-stat damage">⚔️ {{ calculateSkillValue(fabao.spell.baseDamage, fabao.enhance_level || 0) }}</span>
+                      <span v-if="fabao.enhance_level > 0" class="skill-level">Lv.{{ fabao.enhance_level }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
             <!-- 温养控制按钮 -->
             <div v-if="!fabao.isDamaged && fabao.isInDantian" class="nourish-controls">
               <button 
@@ -572,6 +614,53 @@ async function handleEnhance() {
   } else {
     alert(`💔 强化失败...\n\n${result.reason || '强化失败'}`)
   }
+}
+
+// ==================== 技能展示功能 ====================
+
+// 计算技能数值（考虑等级加成）
+function calculateSkillValue(baseValue, skillLevel) {
+  if (!baseValue) return 0
+  const multiplier = 1 + (skillLevel * 0.1)  // 每级+10%
+  return Math.floor(baseValue * multiplier)
+}
+
+// 获取技能详细提示
+function getSkillTooltip(spell, skillLevel) {
+  let tooltip = `${spell.name}\n\n${spell.description}\n\n`
+  tooltip += `MP消耗: ${spell.mpCost}\n`
+  
+  if (spell.baseDamage) {
+    const damage = calculateSkillValue(spell.baseDamage, skillLevel)
+    tooltip += `伤害: ${damage}`
+    if (skillLevel > 0) {
+      tooltip += ` (基础${spell.baseDamage} +${skillLevel}级加成)`
+    }
+    tooltip += '\n'
+  }
+  
+  if (spell.effects?.heal) {
+    const heal = calculateSkillValue(spell.effects.heal, skillLevel)
+    tooltip += `治疗: ${heal}`
+    if (skillLevel > 0) {
+      tooltip += ` (基础${spell.effects.heal} +${skillLevel}级加成)`
+    }
+    tooltip += '\n'
+  }
+  
+  if (spell.effects?.defenseBonus) {
+    const defenseBonus = calculateSkillValue(spell.effects.defenseBonus, skillLevel)
+    tooltip += `防御加成: +${defenseBonus}`
+    if (skillLevel > 0) {
+      tooltip += ` (基础${spell.effects.defenseBonus} +${skillLevel}级加成)`
+    }
+    if (spell.effects?.duration) {
+      tooltip += ` (持续${spell.effects.duration}回合)`
+    }
+    tooltip += '\n'
+  }
+  
+  return tooltip.trim()
 }
 
 // ==================== 温养功能 ====================
@@ -1799,8 +1888,136 @@ h1 {
 }
 
 @keyframes nourish-glow {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
+  0%,  from { opacity: 1; }
+  to { opacity: 0.5; }
+}
+
+/* ==================== 技能展示栏样式 ==================== */
+
+.skills-section {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background: linear-gradient(135deg, rgba(100, 255, 218, 0.08), rgba(52, 152, 219, 0.08));
+  border-radius: 8px;
+  border: 1px solid rgba(100, 255, 218, 0.2);
+}
+
+.skills-header {
+  font-size: 0.9rem;
+  font-weight: bold;
+  color: #64ffda;
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.skills-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.skill-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.skill-item {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  border: 1px solid rgba(100, 255, 218, 0.15);
+  transition: all 0.2s;
+  cursor: help;
+}
+
+.skill-item:hover {
+  background: rgba(100, 255, 218, 0.12);
+  border-color: rgba(100, 255, 218, 0.4);
+  transform: translateX(3px);
+}
+
+.skill-icon-large {
+  font-size: 2rem;
+  min-width: 40px;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.skill-details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.skill-name {
+  font-size: 0.95rem;
+  font-weight: bold;
+  color: #64ffda;
+}
+
+.skill-description {
+  font-size: 0.8rem;
+  color: #999;
+  line-height: 1.4;
+}
+
+.skill-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.2rem;
+}
+
+.skill-stat {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.skill-stat.mp-cost {
+  background: rgba(52, 152, 219, 0.2);
+  color: #3498db;
+  border: 1px solid rgba(52, 152, 219, 0.3);
+}
+
+.skill-stat.damage {
+  background: rgba(231, 76, 60, 0.2);
+  color: #e74c3c;
+  border: 1px solid rgba(231, 76, 60, 0.3);
+}
+
+.skill-stat.heal {
+  background: rgba(46, 204, 113, 0.2);
+  color: #2ecc71;
+  border: 1px solid rgba(46, 204, 113, 0.3);
+}
+
+.skill-stat.defense {
+  background: rgba(243, 156, 18, 0.2);
+  color: #f39c12;
+  border: 1px solid rgba(243, 156, 18, 0.3);
+}
+
+.skill-level {
+  font-size: 0.7rem;
+  color: #f39c12;
+  background: rgba(243, 156, 18, 0.2);
+  padding: 0.2rem 0.4rem;
+  border-radius: 3px;
+  font-weight: bold;
 }
 
 .nourish-progress-bar {

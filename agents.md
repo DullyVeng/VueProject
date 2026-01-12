@@ -8,6 +8,9 @@
 6. 该项目为修仙类型RPG游戏，设计背景和名字时，务必要符合修仙类型RPG游戏的设定。
 7. Geberate Plan时，务必要使用中文编写和汇报。  
 8. Geberate commit message时，务必要使用中文编写和汇报。
+9. 涉及到Supabase的数据库操作时，务必要使用Supabase MCP进行操作。
+10. 涉及到数据的验证时，可以调用supabase MCP进行数据验证。
+11. 调用supabase MCP时，不需要查询项目信息，直接调用该项目的supabase ID为：xufhdurllimdmymuplox
 
 ## 游戏素材目录规范 (web-client/public/assets/game)
 

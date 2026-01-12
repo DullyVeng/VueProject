@@ -146,12 +146,19 @@ export const useFabaoStore = defineStore('fabao', () => {
                     base_attack: instance.attack,
                     base_defense: instance.defense,
                     base_max_hp: instance.max_hp,
+                    base_mp: instance.mp || staticData.baseStats?.mp || 100,
+                    base_max_mp: instance.max_mp || staticData.baseStats?.max_mp || 100,
 
                     // 最终属性（包含温养加成） - 这些是战斗中实际使用的值
                     attack: finalAttack,
                     defense: finalDefense,
                     max_hp: finalMaxHp,
                     hp: finalHp,
+                    mp: instance.mp || staticData.baseStats?.mp || 100,
+                    max_mp: instance.max_mp || staticData.baseStats?.max_mp || 100,
+
+                    // 技能选择（战斗用）
+                    selectedSkill: null,
 
                     rarityConfig,        // 稀有度配置
                     realmConfig,         // 境界配置
@@ -180,6 +187,15 @@ export const useFabaoStore = defineStore('fabao', () => {
             })
 
             console.log(`[fetchFabaos] 加载完成，共 ${fabaos.value.length} 个法宝`)
+
+            // 自动检查并更新所有正在温养的法宝等级
+            const nourishingFabaos = fabaos.value.filter(f => f.nourish_start_time)
+            if (nourishingFabaos.length > 0) {
+                console.log(`[fetchFabaos] 检查 ${nourishingFabaos.length} 个正在温养的法宝等级...`)
+                for (const fabao of nourishingFabaos) {
+                    await updateNourishLevel(fabao.id)
+                }
+            }
         } catch (err) {
             console.error('获取法宝失败:', err)
             error.value = err.message

@@ -8,6 +8,12 @@ import { useQuestStore } from './quest'
 import { useAttributeStore } from './attribute'
 import { useRouter } from 'vue-router'
 import { supabase } from '../supabase/client'
+import {
+    applySkillEffect,
+    selectSkillTarget,
+    canUseSkill,
+    calculateSkillEffect
+} from '../data/fabaoSkills'
 
 export const useCombatStore = defineStore('combat', () => {
     const characterStore = useCharacterStore()
@@ -36,6 +42,12 @@ export const useCombatStore = defineStore('combat', () => {
 
     // 结算信息
     const settlementInfo = ref(null)
+
+    // 技能选择状态（记录每个法宝选择的技能）
+    const selectedSkills = ref({})  // { fabaoId: skillId }
+
+    // 技能使用记录（上一回合使用的技能，用于智能记忆）
+    const lastUsedSkills = ref({})  // { fabaoId: skillId }
 
     // ==================== 辅助方法 ====================
 
@@ -153,6 +165,40 @@ export const useCombatStore = defineStore('combat', () => {
     }
 
     /**
+     * 为法宝选择技能
+     */
+    function selectFabaoSkill(fabaoId, skillId) {
+        selectedSkills.value[fabaoId] = skillId
+        console.log(`[选择技能] 法宝 ${fabaoId} 选择了技能 ${skillId}`)
+    }
+
+    /**
+     * 获取法宝当前选中的技能
+     */
+    function getSelectedSkill(fabaoId) {
+        // 优先返回当前选择的技能
+        if (selectedSkills.value[fabaoId]) {
+            return selectedSkills.value[fabaoId]
+        }
+
+        // 如果没有选择，使用上次使用的技能
+        if (lastUsedSkills.value[fabaoId]) {
+            selectedSkills.value[fabaoId] = lastUsedSkills.value[fabaoId]
+            return lastUsedSkills.value[fabaoId]
+        }
+
+        // 都没有则返回null（法宝使用默认技能）
+        return null
+    }
+
+    /**
+     * 记录技能使用（用于下回合智能记忆）
+     */
+    function recordSkillUsage(fabaoId, skillId) {
+        lastUsedSkills.value[fabaoId] = skillId
+    }
+
+    /**
      * 阶段3 & 4：战斗触发阶段（同时施放技能）
      */
     function battleTriggerPhase() {
@@ -229,6 +275,22 @@ export const useCombatStore = defineStore('combat', () => {
         characterStore.character.current_action_points = newAP
         addLog(`你恢复了${regen}点行动点`, 'heal')
 
+        // 回合结束：为所有存活的法宝恢复MP（10%最大MP）
+        for (const fabao of playerSummonedFabaos.value.filter(f => f.hp > 0)) {
+            const mpRegen = Math.floor((fabao.max_mp || 100) * 0.1)
+            fabao.mp = Math.min((fabao.mp || 0) + mpRegen, fabao.max_mp || 100)
+
+            // 更新数据库
+            await supabase
+                .from('fabao_instances')
+                .update({ mp: fabao.mp })
+                .eq('id', fabao.id)
+
+            if (mpRegen > 0) {
+                addLog(`${fabao.name}恢复了${mpRegen}点MP`, 'heal')
+            }
+        }
+
         // 进入准备阶段，玩家可以选择召唤法宝或直接开始战斗
         combatPhase.value = 'prepare'
         addLog('回合结束，可以继续召唤法宝或开始战斗', 'info')
@@ -288,38 +350,122 @@ export const useCombatStore = defineStore('combat', () => {
     }
 
     /**
-     * 玩家法宝攻击
+     * 玩家法宝攻击（使用技能系统）
      */
     async function playerFabaoAttackAction(fabao) {
-        // 使用法宝技能攻击
-        const skill = fabao.spell
+        // 获取当前选中的技能
+        const selectedSkillId = selectedSkills.value[fabao.id]
+        let skill = null
 
-        // 选择目标
-        let target = null
-        let targetType = 'enemy'
-
-        // 只选择存活的敌人法宝
-        const aliveFabaos = enemySummonedFabaos.value.filter(f => f.hp > 0)
-        if (aliveFabaos.length > 0) {
-            const index = Math.floor(Math.random() * aliveFabaos.length)
-            target = aliveFabaos[index]
-            targetType = 'enemy_fabao'
-        } else {
-            target = enemy.value
+        // 如果法宝有多个技能，使用选中的技能
+        if (fabao.spells && Array.isArray(fabao.spells)) {
+            if (selectedSkillId) {
+                skill = fabao.spells.find(s => s.id === selectedSkillId)
+            }
+            // 如果没有选中，使用第一个技能
+            if (!skill) {
+                skill = fabao.spells[0]
+            }
+        }
+        // 兼容旧的单技能格式
+        else if (fabao.spell) {
+            skill = fabao.spell
         }
 
-        const baseDamage = skill.baseDamage || 20
-        const damage = calculateDamage(baseDamage + fabao.attack, target.defense || 0)
-        target.hp -= damage
+        if (!skill) {
+            addLog(`${fabao.name}没有可用技能！`, 'info')
+            return
+        }
 
-        if (targetType === 'enemy_fabao') {
-            addLog(`${fabao.name}使用${skill.name}攻击${target.name}，造成${damage}点伤害！`, 'damage')
-            if (target.hp <= 0) {
-                addLog(`${target.name}被击败了！`, 'special')
-                // 不再移除死亡法宝，保持显示
+        // 检查MP是否足够
+        const mpCheck = canUseSkill(fabao, skill)
+        if (!mpCheck.canUse) {
+            addLog(`${fabao.name}无法释放${skill.name}：${mpCheck.reason}`, 'info')
+            return
+        }
+
+        // 记录技能使用（用于下回合智能记忆）
+        recordSkillUsage(fabao.id, skill.id)
+
+        // 扣除MP
+        fabao.mp -= skill.mpCost
+
+        // 更新数据库中的MP值
+        await supabase
+            .from('fabao_instances')
+            .update({ mp: fabao.mp })
+            .eq('id', fabao.id)
+
+        // 计算技能等级（= 强化等级）
+        const skillLevel = fabao.enhance_level || fabao.enhanceLevel || 0
+
+        // 选择目标
+        const playerUnits = [characterStore.character, ...playerSummonedFabaos.value.filter(f => f.hp > 0)]
+        const enemyUnits = [enemy.value, ...enemySummonedFabaos.value.filter(f => f.hp > 0)]
+        const target = selectSkillTarget(skill, playerUnits, enemyUnits, fabao)
+
+        if (!target) {
+            addLog(`${fabao.name}的${skill.name}没有找到目标！`, 'info')
+            return
+        }
+
+        // 应用技能效果
+        const effectResult = applySkillEffect(skill, fabao, target, skillLevel)
+
+        if (!effectResult) {
+            addLog(`${fabao.name}的技能效果应用失败！`, 'info')
+            return
+        }
+
+        // 处理效果结果
+        if (Array.isArray(effectResult)) {
+            // 多目标技能 - target也是数组
+            if (Array.isArray(target)) {
+                // 确保effectResult和target长度一致
+                for (let i = 0; i < effectResult.length && i < target.length; i++) {
+                    applyEffectToTarget(effectResult[i], target[i])
+                    addLog(effectResult[i].message, effectResult[i].type === 'heal' ? 'heal' : 'damage')
+                }
+            } else {
+                // 如果target不是数组但effectResult是，这是异常情况
+                console.error('[战斗系统] 多目标技能的target应该是数组')
             }
         } else {
-            addLog(`${fabao.name}使用${skill.name}攻击${enemy.value.name}，造成${damage}点伤害！`, 'damage')
+            // 单目标技能
+            applyEffectToTarget(effectResult, target)
+            addLog(effectResult.message, effectResult.type === 'heal' ? 'heal' : 'damage')
+        }
+
+        // 添加MP消耗日志
+        addLog(`${fabao.name}消耗了${skill.mpCost}点MP（剩余${fabao.mp}/${fabao.max_mp}）`, 'info')
+    }
+
+    /**
+     * 应用效果到目标
+     */
+    function applyEffectToTarget(effectResult, target) {
+        switch (effectResult.type) {
+            case 'damage':
+                target.hp = Math.max(0, target.hp - effectResult.value)
+                if (target.hp <= 0) {
+                    addLog(`${target.name}被击败了！`, 'special')
+                }
+                break
+
+            case 'heal':
+                target.hp = Math.min(target.max_hp, target.hp + effectResult.value)
+                break
+
+            case 'defense_buff':
+                // 临时防御加成（简化处理，直接加到defense上）
+                target.tempDefense = (target.tempDefense || 0) + effectResult.value
+                target.defense = (target.baseDefense || target.defense) + target.tempDefense
+                break
+
+            case 'attack_buff':
+                target.tempAttack = (target.tempAttack || 0) + effectResult.value
+                target.attack = (target.baseAttack || target.attack) + target.tempAttack
+                break
         }
     }
 
@@ -455,7 +601,89 @@ export const useCombatStore = defineStore('combat', () => {
             addLog('逃跑失败！', 'info')
             // 敌人获得一次攻击机会
             await enemyAttackAction()
+            combatPhase.value = 'battle'
         }
+    }
+
+    /**
+     * 同步法宝数据到数据库（HP、MP、召唤状态）
+     * @param {Array} fabaos - 需要同步的法宝列表
+     * @param {Object} options - 同步选项
+     */
+    async function syncFabaosToDatabase(fabaos, options = {}) {
+        const {
+            restoreMP = false,  // 是否恢复MP到满值
+            unsummon = false,   // 是否取消召唤状态
+            maxRetries = 3      // 最大重试次数
+        } = options
+
+        console.log(`[数据库同步] 开始同步${fabaos.length}个法宝，选项:`, options)
+
+        const results = {
+            success: [],
+            failed: []
+        }
+
+        for (const fabao of fabaos) {
+            let retries = 0
+            let synced = false
+
+            while (retries < maxRetries && !synced) {
+                try {
+                    const updateData = {
+                        hp: fabao.hp,
+                        mp: restoreMP ? (fabao.max_mp || 100) : fabao.mp
+                    }
+
+                    if (unsummon) {
+                        updateData.is_summoned = false
+                    }
+
+                    const { error } = await supabase
+                        .from('fabao_instances')
+                        .update(updateData)
+                        .eq('id', fabao.id)
+
+                    if (error) throw error
+
+                    // 更新本地状态
+                    fabao.mp = updateData.mp
+                    if (unsummon) {
+                        fabao.isSummoned = false
+                        fabao.is_summoned = false
+                    }
+
+                    results.success.push(fabao.name)
+                    synced = true
+                    console.log(`[数据库同步] ✓ ${fabao.name} - HP:${fabao.hp}/${fabao.max_hp} MP:${fabao.mp}/${fabao.max_mp}`)
+
+                } catch (error) {
+                    retries++
+                    console.error(`[数据库同步] ✗ ${fabao.name} 同步失败 (尝试${retries}/${maxRetries}):`, error)
+
+                    if (retries >= maxRetries) {
+                        results.failed.push({
+                            name: fabao.name,
+                            error: error.message
+                        })
+                    } else {
+                        // 等待一段时间后重试
+                        await new Promise(resolve => setTimeout(resolve, 1000 * retries))
+                    }
+                }
+            }
+        }
+
+        // 记录同步结果
+        if (results.success.length > 0) {
+            console.log(`[数据库同步] 成功同步${results.success.length}个法宝:`, results.success.join(', '))
+        }
+        if (results.failed.length > 0) {
+            console.error(`[数据库同步] ${results.failed.length}个法宝同步失败:`, results.failed)
+            addLog('部分法宝数据同步失败，请检查网络连接', 'info')
+        }
+
+        return results
     }
 
     /**
@@ -518,16 +746,11 @@ export const useCombatStore = defineStore('combat', () => {
 
             Object.assign(characterStore.character, updateData)
 
-            // 取消所有法宝的召唤状态
-            for (const fabao of playerSummonedFabaos.value) {
-                await supabase
-                    .from('fabao_instances')
-                    .update({ is_summoned: false })
-                    .eq('id', fabao.id)
-                // 同时更新本地状态的两种命名
-                fabao.isSummoned = false
-                fabao.is_summoned = false
-            }
+            // 同步所有法宝数据（HP、MP恢复到满值、取消召唤状态）
+            await syncFabaosToDatabase(playerSummonedFabaos.value, {
+                restoreMP: true,
+                unsummon: true
+            })
 
             // 重新加载法宝数据以确保状态同步
             await fabaoStore.fetchFabaos()
@@ -555,16 +778,11 @@ export const useCombatStore = defineStore('combat', () => {
                 .update({ hp: 1 })
                 .eq('id', characterStore.character.id)
 
-            // 取消所有法宝的召唤状态
-            for (const fabao of playerSummonedFabaos.value) {
-                await supabase
-                    .from('fabao_instances')
-                    .update({ is_summoned: false })
-                    .eq('id', fabao.id)
-                // 同时更新本地状态的两种命名
-                fabao.isSummoned = false
-                fabao.is_summoned = false
-            }
+            // 同步所有法宝数据（HP、MP恢复到满值、取消召唤状态）
+            await syncFabaosToDatabase(playerSummonedFabaos.value, {
+                restoreMP: true,
+                unsummon: true
+            })
 
             // 重新加载法宝数据以确保状态同步
             await fabaoStore.fetchFabaos()
@@ -658,6 +876,8 @@ export const useCombatStore = defineStore('combat', () => {
         enemySummonedFabaos,
         playerSummonedFabaos,
         settlementInfo,
+        selectedSkills,
+        lastUsedSkills,
 
         // 方法
         startCombat,
@@ -666,6 +886,8 @@ export const useCombatStore = defineStore('combat', () => {
         startBattle,
         returnToMap,
         escape,
-        endCombat
+        endCombat,
+        selectFabaoSkill,
+        getSelectedSkill
     }
 })

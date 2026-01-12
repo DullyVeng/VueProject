@@ -62,11 +62,57 @@ export const useCharacterStore = defineStore('character', () => {
         return { data, error: err }
     }
 
+    /**
+     * 消耗行动点
+     */
+    async function consumeActionPoints(amount = 1) {
+        if (!character.value) return false
+
+        const current = character.value.current_action_points || 0
+        if (current < amount) {
+            return false
+        }
+
+        const newAP = current - amount
+
+        const { error } = await supabase
+            .from('characters')
+            .update({ current_action_points: newAP })
+            .eq('id', character.value.id)
+
+        if (!error) {
+            character.value.current_action_points = newAP
+            return true
+        }
+
+        return false
+    }
+
+    /**
+     * 恢复行动点
+     */
+    async function restoreActionPoints(amount) {
+        if (!character.value) return
+
+        const max = character.value.max_action_points || 10
+        const current = character.value.current_action_points || 0
+        const newAP = Math.min(max, current + amount)
+
+        await supabase
+            .from('characters')
+            .update({ current_action_points: newAP })
+            .eq('id', character.value.id)
+
+        character.value.current_action_points = newAP
+    }
+
     return {
         character,
         loading,
         error,
         fetchCharacter,
-        createCharacter
+        createCharacter,
+        consumeActionPoints,
+        restoreActionPoints
     }
 })

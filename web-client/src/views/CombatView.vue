@@ -91,6 +91,51 @@ function getLogClass(log) {
   return 'log-info'
 }
 
+// 计算技能伤害/效果（考虑等级加成）
+function calculateSkillDamage(baseValue, skillLevel) {
+  if (!baseValue) return 0
+  const multiplier = 1 + (skillLevel * 0.1)  // 每级+10%
+  return Math.floor(baseValue * multiplier)
+}
+
+// 获取技能详细提示
+function getSkillTooltip(spell, skillLevel) {
+  let tooltip = `${spell.name}\n\n${spell.description}\n\n`
+  tooltip += `MP消耗: ${spell.mpCost}\n`
+  
+  if (spell.baseDamage) {
+    const damage = calculateSkillDamage(spell.baseDamage, skillLevel)
+    tooltip += `伤害: ${damage}`
+    if (skillLevel > 0) {
+      tooltip += ` (基础${spell.baseDamage} +${skillLevel}级加成)`
+    }
+    tooltip += '\n'
+  }
+  
+  if (spell.effects?.heal) {
+    const heal = calculateSkillDamage(spell.effects.heal, skillLevel)
+    tooltip += `治疗: ${heal}`
+    if (skillLevel > 0) {
+      tooltip += ` (基础${spell.effects.heal} +${skillLevel}级加成)`
+    }
+    tooltip += '\n'
+  }
+  
+  if (spell.effects?.defenseBonus) {
+    const defenseBonus = calculateSkillDamage(spell.effects.defenseBonus, skillLevel)
+    tooltip += `防御加成: +${defenseBonus}`
+    if (skillLevel > 0) {
+      tooltip += ` (基础${spell.effects.defenseBonus} +${skillLevel}级加成)`
+    }
+    if (spell.effects?.duration) {
+      tooltip += ` (持续${spell.effects.duration}回合)`
+    }
+    tooltip += '\n'
+  }
+  
+  return tooltip.trim()
+}
+
 // 当前回合数（用于显示文本）
 const turn = computed(() => combatStore.turn)
 
@@ -169,12 +214,69 @@ const turn = computed(() => combatStore.turn)
             <span class="fabao-icon">{{ fabao.icon }}</span>
             <span class="fabao-name">
               {{ fabao.name }}
+              <span v-if="fabao.enhance_level > 0" class="enhance-level-badge">+{{ fabao.enhance_level }}</span>
               <span v-if="fabao.nourish_level > 0" class="nourish-indicator player" :title="'温养等级 Lv.' + fabao.nourish_level">🌟{{ fabao.nourish_level }}</span>
             </span>
+           
+            <!-- HP条 -->
             <div class="mini-hp-bar">
               <div class="fill player" :style="{ width: (Math.max(0, fabao.hp) / fabao.max_hp * 100) + '%' }"></div>
             </div>
-            <span class="hp-label">{{ Math.max(0, fabao.hp) }}/{{ fabao.max_hp }}</span>
+            <span class="hp-label">❤️ {{ Math.max(0, fabao.hp) }}/{{ fabao.max_hp }}</span>
+            
+            <!-- MP条 -->
+            <div class="mini-mp-bar">
+              <div class="fill" :style="{ width: ((fabao.mp || 0) / (fabao.max_mp || 100) * 100) + '%' }"></div>
+            </div>
+            <span class="mp-label">💙 {{ fabao.mp || 0 }}/{{ fabao.max_mp || 100 }}</span>
+            
+            <!-- 技能列表（如果有多个技能） -->
+            <div v-if="fabao.spells && fabao.spells.length > 1 && combatStore.combatPhase === 'prepare'" class="skill-selector">
+              <div class="skill-selector-label">选择技能：</div>
+              <div class="skill-buttons">
+                <button 
+                  v-for="spell in fabao.spells" 
+                  :key="spell.id"
+                  class="skill-select-btn"
+                  :class="{ 
+                    'selected': combatStore.selectedSkills[fabao.id] === spell.id,
+                    'last-used': combatStore.lastUsedSkills[fabao.id] === spell.id
+                  }"
+                  @click="combatStore.selectFabaoSkill(fabao.id, spell.id)"
+                  :title="getSkillTooltip(spell, fabao.enhance_level || 0)"
+                >
+                  <span class="skill-btn-icon">{{ spell.icon }}</span>
+                  <div class="skill-btn-details">
+                    <span class="skill-btn-name">{{ spell.name }}</span>
+                    <span class="skill-btn-desc">{{ spell.description }}</span>
+                    <div class="skill-btn-stats">
+                      <span class="skill-stat-mini mp">{{ spell.mpCost }}MP</span>
+                      <span v-if="spell.baseDamage" class="skill-stat-mini dmg">伤害{{ calculateSkillDamage(spell.baseDamage, fabao.enhance_level || 0) }}</span>
+                      <span v-if="spell.effects?.heal" class="skill-stat-mini heal">治疗{{ calculateSkillDamage(spell.effects.heal, fabao.enhance_level || 0) }}</span>
+                      <span v-if="spell.effects?.defenseBonus" class="skill-stat-mini def">防御+{{ calculateSkillDamage(spell.effects.defenseBonus, fabao.enhance_level || 0) }}</span>
+                    </div>
+                  </div>
+                  <span class="skill-btn-cost">{{ spell.mpCost }}MP</span>
+                </button>
+              </div>
+            </div>
+            
+            <!-- 当前技能信息 -->
+            <div v-else-if="fabao.spells && fabao.spells.length === 1" class="skill-info">
+              <span class="skill-icon">{{ fabao.spells[0].icon }}</span>
+              <div class="skill-text-info">
+                <span class="skill-name">{{ fabao.spells[0].name }}</span>
+                <span class="skill-description-mini">{{ fabao.spells[0].description }}</span>
+              </div>
+              <span class="skill-level" v-if="fabao.enhance_level > 0">Lv.{{ fabao.enhance_level }}</span>
+            </div>
+            <!-- 兼容旧的spell格式 -->
+            <div v-else-if="fabao.spell" class="skill-info">
+              <span class="skill-icon">{{ fabao.spell.icon }}</span>
+              <span class="skill-name">{{ fabao.spell.name }}</span>
+              <span class="skill-level" v-if="fabao.enhance_level > 0">Lv.{{ fabao.enhance_level }}</span>
+            </div>
+            
             <span v-if="fabao.hp <= 0" class="death-mark">💀</span>
           </div>
           <div v-if="combatStore.playerSummonedFabaos.length === 0" class="no-fabaos">
@@ -502,6 +604,212 @@ const turn = computed(() => combatStore.turn)
   color: #aaa;
 }
 
+/* MP条样式 */
+.mini-mp-bar {
+  height: 4px;
+  background: #444;
+  border-radius: 2px;
+  margin: 0.5rem 0 0.25rem 0;
+  overflow: hidden;
+}
+
+.mini-mp-bar .fill {
+  height: 100%;
+  background: #3498db;
+  transition: width 0.3s ease;
+}
+
+.mp-label {
+  font-size: 0.75rem;
+  color: #aaa;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+/* 技能信息样式 */
+.skill-info {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.5rem;
+  padding: 0.3rem;
+  background: rgba(52, 152, 219, 0.15);
+  border-radius: 4px;
+  border: 1px solid rgba(52, 152, 219, 0.3);
+}
+
+.skill-text-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.skill-description-mini {
+  font-size: 0.7rem;
+  color: #999;
+  line-height: 1.3;
+}
+
+.skill-icon {
+  font-size: 1rem;
+}
+
+.skill-name {
+  font-size: 0.75rem;
+  color: #64ffda;
+  font-weight: bold;
+  flex: 1;
+}
+
+.skill-level {
+  font-size: 0.7rem;
+  color: #f39c12;
+  background: rgba(243, 156, 18, 0.2);
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+}
+
+/* 强化等级徽章 */
+.enhance-level-badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  color: #f39c12;
+  background: rgba(243, 156, 18, 0.2);
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  margin-left: 0.3rem;
+  font-weight: bold;
+}
+
+/* 技能选择器 */
+.skill-selector {
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  background: rgba(100, 255, 218, 0.08);
+  border-radius: 6px;
+  border: 1px solid rgba(100, 255, 218, 0.2);
+}
+
+.skill-selector-label {
+  font-size: 0.7rem;
+  color: #64ffda;
+  margin-bottom: 0.4rem;
+  font-weight: bold;
+}
+
+.skill-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.skill-select-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid rgba(100, 255, 218, 0.3);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #fff;
+  font-size: 0.75rem;
+}
+
+.skill-select-btn:hover {
+  background: rgba(100, 255, 218, 0.15);
+  border-color: rgba(100, 255, 218, 0.6);
+  transform: translateX(3px);
+}
+
+.skill-select-btn.selected {
+  background: rgba(100, 255, 218, 0.25);
+  border-color: #64ffda;
+  box-shadow: 0 0 8px rgba(100, 255, 218, 0.4);
+}
+
+.skill-select-btn.last-used {
+  border-style: dashed;
+}
+
+.skill-btn-icon {
+  font-size: 1.5rem;
+  min-width: 30px;
+  text-align: center;
+}
+
+.skill-btn-details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  text-align: left;
+}
+
+.skill-btn-name {
+  font-weight: bold;
+  color: #64ffda;
+  font-size: 0.85rem;
+}
+
+.skill-btn-desc {
+  font-size: 0.7rem;
+  color: #999;
+  line-height: 1.3;
+}
+
+.skill-btn-stats {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-top: 0.2rem;
+}
+
+.skill-stat-mini {
+  font-size: 0.65rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 3px;
+  font-weight: 500;
+}
+
+.skill-stat-mini.mp {
+  background: rgba(52, 152, 219, 0.2);
+  color: #3498db;
+}
+
+.skill-stat-mini.dmg {
+  background: rgba(231, 76, 60, 0.2);
+  color: #e74c3c;
+}
+
+.skill-stat-mini.heal {
+  background: rgba(46, 204, 113, 0.2);
+  color: #2ecc71;
+}
+
+.skill-stat-mini.def {
+  background: rgba(243, 156, 18, 0.2);
+  color: #f39c12;
+}
+
+.skill-btn-cost {
+  font-size: 0.7rem;
+  color: #3498db;
+  background: rgba(52, 152, 219, 0.2);
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  align-self: flex-start;
+  display: none; /* 隐藏右侧的MP消耗，已在详情中显示 */
+}
+
+.no-fabaos {
+  color: #666;
+  font-style: italic;
+  padding: 1rem;
+}
+
 /* 死亡法宝样式 */
 .fabao-battle-card.dead {
   opacity: 0.5;
@@ -520,12 +828,6 @@ const turn = computed(() => combatStore.turn)
   font-size: 2rem;
   opacity: 0.8;
   pointer-events: none;
-}
-
-.no-fabaos {
-  color: #666;
-  font-style: italic;
-  padding: 1rem;
 }
 
 .log-panel {

@@ -140,6 +140,96 @@ export const items = [
         description: '道家法器，可攻可守。',
         price: 200,
         icon: '☯️'
+    },
+
+    // ========== 资源类物品 ==========
+    // 草药
+    {
+        id: 'lingcao',
+        name: '灵草',
+        type: 'material',
+        category: 'herb',
+        description: '普通的灵草，可用于炼丹。',
+        price: 5,
+        icon: '🌿'
+    },
+    {
+        id: 'qingling',
+        name: '青灵草',
+        type: 'material',
+        category: 'herb',
+        description: '带有微弱灵气的青色草药，炼丹良材。',
+        price: 15,
+        icon: '🍀'
+    },
+    {
+        id: 'frost_lotus',
+        name: '寒冰莲',
+        type: 'material',
+        category: 'herb',
+        description: '生长在极寒之地的莲花，蕴含冰属性灵气。',
+        price: 80,
+        icon: '❄️'
+    },
+
+    // 矿石
+    {
+        id: 'iron_ore',
+        name: '铁矿石',
+        type: 'material',
+        category: 'ore',
+        description: '普通的铁矿石，可用于炼器。',
+        price: 3,
+        icon: '⛰️'
+    },
+    {
+        id: 'silver_ore',
+        name: '银矿石',
+        type: 'material',
+        category: 'ore',
+        description: '品质较好的银矿，炼器佳品。',
+        price: 12,
+        icon: '💎'
+    },
+    {
+        id: 'flame_essence',
+        name: '火焰精华',
+        type: 'material',
+        category: 'ore',
+        description: '蕴含火属性灵力的矿石，极为珍贵。',
+        price: 100,
+        icon: '🔥'
+    },
+
+    // 水晶
+    {
+        id: 'dark_crystal',
+        name: '暗影水晶',
+        type: 'material',
+        category: 'crystal',
+        description: '洞穴深处形成的黑色水晶，吸收阴暗之气。',
+        price: 25,
+        icon: '🔮'
+    },
+
+    // 妖兽材料
+    {
+        id: 'beast_core',
+        name: '妖兽内丹',
+        type: 'material',
+        category: 'material',
+        description: '妖兽体内凝聚的内丹，蕴含强大能量。',
+        price: 150,
+        icon: '⚡'
+    },
+    {
+        id: 'spirit_fur',
+        name: '灵兽皮毛',
+        type: 'material',
+        category: 'material',
+        description: '灵兽的皮毛，柔软且坚韧。',
+        price: 35,
+        icon: '🦊'
     }
 ]
 

@@ -728,7 +728,12 @@ export const useSectStore = defineStore('sect', () => {
             }
 
             lastSyncTime.value = Date.now()
-            return { success: true, message: '宗门数据加载成功', data: sectData }
+            return {
+                success: true,
+                message: '宗门数据加载成功',
+                founded: true,
+                data: sectData
+            }
         } catch (error) {
             console.error('加载宗门数据失败:', error)
             return { success: false, message: error.message }

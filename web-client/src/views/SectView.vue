@@ -2,11 +2,18 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSectStore, BUILDING_STATUS } from '../stores/sect'
+import { useCharacterStore } from '../stores/character'
 import { getBuildingConfig, getRegularBuildingsList, getSpecialBuildingsList } from '../data/sectBuildings'
 import { getPlotTypeConfig } from '../data/sectPlots'
+import SectFoundationDialog from '../components/SectFoundationDialog.vue'
 
 const router = useRouter()
 const sectStore = useSectStore()
+const characterStore = useCharacterStore()
+
+// 宗门开启状态
+const showFoundationDialog = ref(false)
+const isLoading = ref(true)
 
 // 选中的地块
 const selectedPlotId = ref(null)
@@ -61,30 +68,43 @@ const selectPlot = (plot) => {
 }
 
 // 开始建造
-const startBuild = (buildingId) => {
+const startBuild = async (buildingId) => {
     if (!selectedPlotId.value) return
     const result = sectStore.startBuildBuilding(selectedPlotId.value, buildingId)
     if (result.success) {
         showBuildPanel.value = false
         alert(`开始建造，预计需要 ${formatTime(result.buildTime)}`)
+        
+        // 保存到数据库
+        await sectStore.saveToDatabase()
     } else {
         alert(result.reason)
     }
 }
 
 // 取消建造
-const cancelBuild = (plotId) => {
+const cancelBuild = async (plotId) => {
     if (confirm('确定取消建造？材料不会返还！')) {
         const result = sectStore.cancelBuilding(plotId)
         alert(result.message || result.reason)
+        
+        if (result.success) {
+            // 保存到数据库
+            await sectStore.saveToDatabase()
+        }
     }
 }
 
 // 拆除建筑
-const demolish = (plotId) => {
+const demolish = async (plotId) => {
     if (confirm('确定拆除该建筑？材料不会返还！')) {
         const result = sectStore.demolishBuilding(plotId)
         alert(result.message || result.reason)
+        
+        if (result.success) {
+            // 保存到数据库
+            await sectStore.saveToDatabase()
+        }
     }
 }
 
@@ -100,26 +120,37 @@ const collect = (plotId) => {
 }
 
 // 恢复暂停的建筑
-const resume = (plotId) => {
+const resume = async (plotId) => {
     const result = sectStore.resumeBuilding(plotId)
     alert(result.message || result.reason)
+    
+    if (result.success) {
+        // 保存到数据库
+        await sectStore.saveToDatabase()
+    }
 }
 
 // 升级建筑
-const upgrade = (plotId) => {
+const upgrade = async (plotId) => {
     const result = sectStore.upgradeBuilding(plotId)
     if (result.success) {
         alert(`升级成功！当前等级: ${result.newLevel}`)
+        
+        // 保存到数据库
+        await sectStore.saveToDatabase()
     } else {
         alert(result.reason)
     }
 }
 
 // 升级宗门
-const upgradeSect = () => {
+const upgradeSect = async () => {
     const result = sectStore.upgradeSect()
     if (result.success) {
         alert(`宗门升级成功！当前等级: ${result.newLevelName}`)
+        
+        // 保存到数据库
+        await sectStore.saveToDatabase()
     } else {
         alert(`升级失败: ${result.missing?.join(', ')}`)
     }
@@ -136,25 +167,62 @@ const updateProgress = () => {
     }
 }
 
-onMounted(() => {
+onMounted(async () => {
+    // 加载宗门数据
+    if (characterStore.character) {
+        const result = await sectStore.loadFromDatabase(characterStore.character.id)
+        
+        // 检查宗门是否已开启（优先使用Store中的状态）
+        if (!result.success || (result.founded === false) || !sectStore.isFounded) {
+            // 宗门未开启，显示开启对话框
+            showFoundationDialog.value = true
+        }
+    }
+    
+    isLoading.value = false
     updateProgress()
     setInterval(updateProgress, 1000)
 })
+
+// 宗门开启成功
+const onSectFounded = async (message) => {
+    alert(message)
+    showFoundationDialog.value = false
+    
+    // 重新加载宗门数据
+    if (characterStore.character) {
+        await sectStore.loadFromDatabase(characterStore.character.id)
+    }
+}
 
 const goBack = () => router.push('/')
 </script>
 
 <template>
   <div class="sect-container">
-    <!-- 顶部导航 -->
-    <header class="sect-header">
-      <button class="btn-back" @click="goBack">← 返回</button>
-      <h1>{{ sectStore.sectName }}</h1>
-      <div class="sect-level">
-        <span class="level-badge">{{ sectStore.currentLevelConfig?.name || '草创' }}</span>
-        <span class="level-text">Lv.{{ sectStore.sectLevel }}</span>
-      </div>
-    </header>
+    <!-- 加载状态 -->
+    <div v-if="isLoading" class="loading-overlay">
+      <div class="loading-spinner">加载中...</div>
+    </div>
+
+    <!-- 宗门开启对话框 -->
+    <SectFoundationDialog
+      v-if="showFoundationDialog"
+      @close="goBack"
+      @founded="onSectFounded"
+    />
+
+    <!-- 宗门管理界面（仅在宗门已开启时显示） -->
+    <template v-if="!isLoading && sectStore.isFounded">
+      <!-- 顶部导航 -->
+      <header class="sect-header">
+        <button class="btn-back" @click="goBack">← 返回</button>
+        <h1>{{ sectStore.sectName }}</h1>
+        <div class="sect-level">
+          <span class="level-badge">{{ sectStore.currentLevelConfig?.name || '草创' }}</span>
+          <span class="level-text">Lv.{{ sectStore.sectLevel }}</span>
+        </div>
+      </header>
 
     <div class="sect-content">
       <!-- 左侧：宗门信息面板 -->
@@ -343,10 +411,40 @@ const goBack = () => router.push('/')
         </template>
       </aside>
     </div>
+    </template>
   </div>
 </template>
 
 <style scoped>
+/* Loading Overlay */
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3000;
+}
+
+.loading-spinner {
+  font-size: 1.5rem;
+  color: #f1c40f;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
 .sect-container {
   width: 100vw;
   height: 100vh;

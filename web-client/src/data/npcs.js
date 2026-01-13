@@ -16,6 +16,7 @@ export const npcs = [
             greeting: {
                 text: '欢迎光临！这位道友需要点什么？',
                 options: [
+                    { text: '📜 查看任务', action: 'view_quests' },
                     { text: '💰 查看商品', action: 'open_shop' },
                     { text: '💬 打听消息', next: 'info' },
                     { text: '👋 告辞', action: 'close' }
@@ -40,7 +41,9 @@ export const npcs = [
                 'robe_cloth',
                 'hat_bamboo'
             ]
-        }
+        },
+
+        quests: ['quest_002']  // 采集灵草任务
     },
 
     // 起始镇 - 李长老（信息NPC）
@@ -116,6 +119,7 @@ export const npcs = [
             greeting: {
                 text: '需要丹药吗？我这里的丹药品质上乘。',
                 options: [
+                    { text: '📜 查看任务', action: 'view_quests' },
                     { text: '💰 查看丹药', action: 'open_shop' },
                     { text: '告辞', action: 'close' }
                 ]
@@ -129,7 +133,9 @@ export const npcs = [
                 'potion_hp_small',
                 'potion_mp_small'
             ]
-        }
+        },
+
+        quests: ['quest_side_001']  // 收集妖兽内丹任务
     }
 ]
 

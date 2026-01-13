@@ -34,7 +34,7 @@
 
 ### 优先级规则（从高到低）
 1. **当前任务**（用户本次请求）
-2. **agents-core.md**（本文档，硬性约束）
+2. **agents.md**（本文档，硬性约束）
 3. **task.md 中的"下一步行动"**（迭代上下文）
 4. **implementation.md**（技术细节）
 5. **历史对话**（可丢弃）
@@ -44,8 +44,8 @@
 1. 立即检查 `ai-agent/current/` 是否存在迭代文件夹
 2. 读取 `task.md` → "下一步行动"
 3. 丢弃历史对话，仅保留：
-   - 本文档（agents-core.md）
-   - task.md
+   - 本文档（agents.md）
+   - task.md / implementation.md
    - 当前任务相关代码
 4. **禁止**：试图总结历史对话或要求用户重新说明
 
@@ -87,6 +87,7 @@ current/feature-name/
 2. 在归档文件夹创建 README.md（总结本次迭代）
 3. 删除项目根目录/src 中的临时总结文档
 4. 清空 `current/` 目录
+5. 更新`ai-agent/current/`下的next_steps.md,quick_reference.md,README.md
 
 ### 归档位置约束
 - ❌ 禁止：将总结放在 `web-client/` 或项目根目录

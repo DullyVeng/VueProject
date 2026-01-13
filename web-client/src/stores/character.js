@@ -149,6 +149,47 @@ export const useCharacterStore = defineStore('character', () => {
         character.value.silver = newSilver
     }
 
+    /**
+     * 获得经验
+     */
+    async function gainExp(amount) {
+        if (!character.value) return
+
+        const currentExp = character.value.exp || 0
+        const currentLevel = character.value.level || 1
+        const newExp = currentExp + amount
+
+        // 升级公式：每级需要 level * 100 经验
+        const expNeeded = currentLevel * 100
+
+        if (newExp >= expNeeded) {
+            const newLevel = currentLevel + 1
+            const remainingExp = newExp - expNeeded
+
+            await supabase
+                .from('characters')
+                .update({
+                    level: newLevel,
+                    exp: remainingExp,
+                    available_attribute_points: (character.value.available_attribute_points || 0) + 5
+                })
+                .eq('id', character.value.id)
+
+            character.value.level = newLevel
+            character.value.exp = remainingExp
+            character.value.available_attribute_points = (character.value.available_attribute_points || 0) + 5
+
+            console.log(`[Character] 升级！当前等级：${newLevel}`)
+        } else {
+            await supabase
+                .from('characters')
+                .update({ exp: newExp })
+                .eq('id', character.value.id)
+
+            character.value.exp = newExp
+        }
+    }
+
     return {
         character,
         loading,
@@ -158,6 +199,7 @@ export const useCharacterStore = defineStore('character', () => {
         consumeActionPoints,
         restoreActionPoints,
         spendSilver,
-        gainSilver
+        gainSilver,
+        gainExp
     }
 })

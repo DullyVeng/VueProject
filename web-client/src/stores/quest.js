@@ -145,7 +145,7 @@ export const useQuestStore = defineStore('quest', () => {
 
         // 经验
         if (rewards.exp) {
-            // TODO: 添加经验（需要character store支持）
+            await characterStore.gainExp(rewards.exp)
             console.log('[Quest] 获得经验:', rewards.exp)
         }
 

@@ -1,7 +1,9 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuestStore } from '../stores/quest'
+import { getQuestById } from '../data/quests'
+import { getItemById } from '../data/items'
 
 const router = useRouter()
 const questStore = useQuestStore()
@@ -9,6 +11,46 @@ const activeTab = ref('active') // active, available, history
 
 onMounted(() => {
   questStore.fetchQuests()
+})
+
+// 合并任务配置和进度数据
+const mergedActiveQuests = computed(() => {
+  return questStore.activeQuests.map(pq => {
+    const config = getQuestById(pq.quest_id)
+    
+    // 转换奖励物品信息
+    const rewards = config?.rewards || {}
+    const itemRewards = rewards.items ? rewards.items.map(item => {
+      const itemData = getItemById(item.id)
+      return {
+        ...item,
+        name: itemData?.name || '未知物品',
+        icon: itemData?.icon || '📦'
+      }
+    }) : []
+    
+    return {
+      ...pq,
+      name: config?.name || '未知任务',
+      description: config?.description || '',
+      rewards: {
+        ...rewards,
+        items: itemRewards
+      },
+      objectives: pq.objectives // 保留进度数据
+    }
+  })
+})
+
+const mergedHistoryQuests = computed(() => {
+  return questStore.historyQuests.map(pq => {
+    const config = getQuestById(pq.quest_id)
+    return {
+      ...pq,
+      name: config?.name || '未知任务',
+      description: config?.description || ''
+    }
+  })
 })
 
 const goHome = () => {
@@ -50,33 +92,37 @@ const goHome = () => {
 
         <!-- Active Quests -->
         <div v-else-if="activeTab === 'active'" class="tab-pane">
-           <div v-if="questStore.activeQuests.length === 0" class="empty">暂无进行中的任务</div>
-           <div v-for="quest in questStore.activeQuests" :key="quest.id" class="quest-card">
+           <div v-if="mergedActiveQuests.length === 0" class="empty">暂无进行中的任务</div>
+           <div v-for="quest in mergedActiveQuests" :key="quest.id" class="quest-card">
               <div class="quest-header">
-                <h3>{{ quest.title }}</h3>
+                <h3>{{ quest.name }}</h3>
                 <span class="status-badge" :class="quest.status">
                   {{ quest.status === 'completed' ? '可领取' : '进行中' }}
                 </span>
               </div>
               <p class="desc">{{ quest.description }}</p>
               
-              <div class="objective">
-                 <span>目标: 击杀 {{ quest.target.monsterId }}</span>
-                 <span class="progress">{{ quest.progress }} / {{ quest.target.count }}</span>
+              <!-- 任务目标 -->
+              <div v-for="(obj, idx) in quest.objectives" :key="idx" class="objective">
+                 <span>目标 {{ idx + 1 }}: {{ obj.description }}</span>
+                 <span class="progress">{{ obj.current }} / {{ obj.required }}</span>
               </div>
-              <div class="progress-bar">
-                 <div class="fill" :style="{ width: (quest.progress / quest.target.count * 100) + '%' }"></div>
+              <div v-for="(obj, idx) in quest.objectives" :key="'bar-' + idx" class="progress-bar">
+                 <div class="fill" :style="{ width: Math.min(100, (obj.current / obj.required * 100)) + '%' }"></div>
               </div>
 
               <div class="rewards">
-                奖励: {{ quest.reward.exp }} EXP, 
-                <span v-for="item in quest.reward.items" :key="item.id">{{ item.id }} x{{ item.count }} </span>
+                <span v-if="quest.rewards.exp">奖励: {{ quest.rewards.exp }} EXP</span>
+                <span v-if="quest.rewards.silver">, {{ quest.rewards.silver }} 灵石</span>
+                <span v-if="quest.rewards.items">
+                  <span v-for="item in quest.rewards.items" :key="item.id">, {{ item.name }} x{{ item.quantity }}</span>
+                </span>
               </div>
 
               <button 
                 v-if="quest.status === 'completed'" 
                 class="btn-claim"
-                @click="questStore.claimReward(quest)"
+                @click="questStore.completeQuest(quest.quest_id)"
               >
                 🎁 领取奖励
               </button>
@@ -98,9 +144,9 @@ const goHome = () => {
 
         <!-- History -->
         <div v-else class="tab-pane">
-           <div v-if="questStore.historyQuests.length === 0" class="empty">暂无已完成任务</div>
-           <div v-for="quest in questStore.historyQuests" :key="quest.id" class="quest-card finished">
-              <h3>{{ quest.title }}</h3>
+           <div v-if="mergedHistoryQuests.length === 0" class="empty">暂无已完成任务</div>
+           <div v-for="quest in mergedHistoryQuests" :key="quest.id" class="quest-card finished">
+              <h3>{{ quest.name }}</h3>
               <p class="desc">{{ quest.description }}</p>
               <span class="status-badge finished">已完成</span>
            </div>

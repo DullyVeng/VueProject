@@ -5,6 +5,7 @@ import { useGameStore } from '../stores/game'
 import { useCombatStore } from '../stores/combat'
 import { useCharacterStore } from '../stores/character'
 import { useInventoryStore } from '../stores/inventory'
+import { useQuestStore } from '../stores/quest'
 import { maps, areas, getMapById, getConnectedMaps, getUnlockedMaps } from '../data/maps'
 import { mapPositions } from '../data/mapPositions'
 import { getItemById } from '../data/items'
@@ -17,6 +18,7 @@ const router = useRouter()
 const gameStore = useGameStore()
 const combatStore = useCombatStore()
 const characterStore = useCharacterStore()
+const questStore = useQuestStore()
 
 const currentMap = computed(() => getMapById(gameStore.currentLocationId))
 const connections = computed(() => getConnectedMaps(gameStore.currentLocationId))
@@ -150,6 +152,11 @@ const handleGather = async () => {
     for (const item of gathered) {
         await addItem(item.id, item.quantity)
     }
+    
+    // 6.5. 更新采集任务进度
+    gathered.forEach(item => {
+        questStore.checkCollectQuest(item.id)
+    })
     
     // 7. 显示结果
     gatherResult.value = {

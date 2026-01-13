@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { supabase } from '../supabase/client'
 import { useCharacterStore } from './character'
+import { useQuestStore } from './quest'
 
 export const useGameStore = defineStore('game', () => {
     const isInitialized = ref(false)
@@ -72,6 +73,10 @@ export const useGameStore = defineStore('game', () => {
 
         // 保存到数据库
         await saveLocationToDatabase(mapId)
+
+        // 检查访问地点任务
+        const questStore = useQuestStore()
+        questStore.checkVisitQuest(mapId)
     }
 
     return {

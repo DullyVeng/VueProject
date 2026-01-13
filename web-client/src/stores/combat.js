@@ -709,8 +709,8 @@ export const useCombatStore = defineStore('combat', () => {
                 addLog('怪物掉落了物品！', 'special')
             }
 
-            // 更新任务进度
-            questStore.updateProgress(enemy.value.id)
+            // 更新击杀任务进度
+            questStore.checkKillQuests()
 
             // 更新角色数据
             const newExp = characterStore.character.exp + expReward

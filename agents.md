@@ -87,7 +87,10 @@ current/feature-name/
 2. 在归档文件夹创建 README.md（总结本次迭代）
 3. 删除项目根目录/src 中的临时总结文档
 4. 清空 `current/` 目录
-5. 更新`ai-agent/current/`下的next_steps.md,quick_reference.md,README.md
+5. 必须同步更新以下 3 个文件（即使内容很短）：
+  - ai-agent/current/next_steps.md
+  - ai-agent/current/quick_reference.md
+  - ai-agent/current/README.md
 
 ### 归档位置约束
 - ❌ 禁止：将总结放在 `web-client/` 或项目根目录

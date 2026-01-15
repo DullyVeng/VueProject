@@ -56,6 +56,48 @@ const handleUnequip = async (item) => {
   await inventoryStore.unequipItem(item)
   closeModal()
 }
+
+// 经验进度条
+const expNeeded = computed(() => {
+  const char = characterStore.character
+  if (!char) return 50
+  return char.level * 50
+})
+
+const expPercent = computed(() => {
+  const char = characterStore.character
+  if (!char) return 0
+  const exp = char.exp || 0
+  const needed = expNeeded.value
+  return Math.min(100, (exp / needed) * 100)
+})
+
+const canAdvanceRealmLevel = computed(() => {
+  const char = characterStore.character
+  if (!char) return false
+  
+  const currentRealmLevel = char.realm_level || 1
+  const requiredLevel = (currentRealmLevel + 1) * 10
+  const currentLevel = char.level || 1
+  const currentExp = char.exp || 0
+  const expNeeded = currentLevel * 50
+  const silverCost = (currentRealmLevel + 1) * 100
+  
+  if (currentLevel < requiredLevel) return false
+  if (char.silver < silverCost) return false
+  if (currentLevel > requiredLevel) return true
+  
+  return currentExp >= expNeeded
+})
+
+async function handleRealmLevelAdvance() {
+  const result = await characterStore.advanceRealmLevel()
+  if (result.success) {
+    alert(`🎉 ${result.message}`)
+  } else {
+    alert(`❌ ${result.message}`)
+  }
+}
 </script>
 
 <template>
@@ -78,6 +120,23 @@ const handleUnequip = async (item) => {
          <div class="level-badge">Lv.{{ characterStore.character?.level }}</div>
          <h2>{{ characterStore.character?.name }}</h2>
          <button class="btn-close-panel" @click="$emit('close')">×</button>
+       </div>
+
+       <!-- 境界层数信息和突破按钮 -->
+       <div class="realm-level-section" v-if="characterStore.character">
+         <div class="realm-level-badge">
+           炼气{{ characterStore.character.realm_level || 1 }}层 ({{ characterStore.character.level || 1 }}级)
+         </div>
+         <button 
+           v-if="canAdvanceRealmLevel"
+           class="btn-realm-level-advance"
+           @click="handleRealmLevelAdvance"
+         >
+           突破炼气{{ (characterStore.character.realm_level || 1) + 1 }}层
+         </button>
+         <div v-if="canAdvanceRealmLevel" class="advance-cost">
+           消耗 {{ ((characterStore.character.realm_level || 1) + 1) * 100 }} 灵石
+         </div>
        </div>
 
        <div class="panel-body">
@@ -156,9 +215,14 @@ const handleUnequip = async (item) => {
                 <span class="label">防御 (DEF)</span>
                 <span class="value">{{ characterStore.character.defense }}</span>
              </div>
-             <div class="stat-row">
+             <div class="stat-row exp-row">
                 <span class="label">经验 (EXP)</span>
-                <span class="value">{{ characterStore.character.exp }}</span>
+                <div class="exp-bar-wrapper">
+                   <div class="exp-bar">
+                      <div class="exp-fill" :style="{ width: expPercent + '%' }"></div>
+                   </div>
+                   <span class="exp-text">{{ characterStore.character.exp }} / {{ expNeeded }}</span>
+                </div>
              </div>
              <div class="stat-row">
                 <span class="label">白银</span>
@@ -357,6 +421,82 @@ const handleUnequip = async (item) => {
 .label { color: #aaa; }
 .value { color: #fff; font-weight: bold; }
 .silver { color: #f1c40f; }
+
+/* 经验进度条 */
+.exp-row {
+  flex-direction: column;
+  gap: 6px;
+  align-items: stretch;
+}
+
+.exp-bar-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.exp-bar {
+  height: 18px;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 9px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  position: relative;
+}
+
+.exp-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #f39c12, #f1c40f);
+  transition: width 0.3s ease;
+}
+
+.exp-text {
+  font-size: 0.75rem;
+  color: #f1c40f;
+  text-align: right;
+  font-weight: bold;
+}
+
+/* 境界层数突破 */
+.realm-level-section {
+  padding: 12px;
+  margin-bottom: 1rem;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+  border-radius: 8px;
+  border: 1px solid rgba(102, 126, 234, 0.3);
+}
+
+.realm-level-badge {
+  font-size: 0.95rem;
+  color: #667eea;
+  font-weight: bold;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.btn-realm-level-advance {
+  width: 100%;
+  padding: 10px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  border-radius: 6px;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s;
+  margin-bottom: 6px;
+}
+
+.btn-realm-level-advance:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.advance-cost {
+  text-align: center;
+  font-size: 0.8rem;
+  color: #f1c40f;
+}
 
 @media (max-width: 600px) {
   .character-wrapper {

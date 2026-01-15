@@ -7,6 +7,7 @@ import { useInventoryStore } from '../stores/inventory'
 import ControlBar from '../components/game/ControlBar.vue'
 import CharacterPanel from '../components/game/CharacterPanel.vue'
 import InventoryPanel from '../components/game/InventoryPanel.vue'
+import TaskSidebar from '../components/TaskSidebar.vue'
 
 const userStore = useUserStore()
 const characterStore = useCharacterStore()
@@ -15,6 +16,7 @@ const router = useRouter()
 
 const showCharacter = ref(false)
 const showInventory = ref(false)
+const showTasks = ref(false)
 
 onMounted(async () => {
   await userStore.initialize()
@@ -35,11 +37,14 @@ const toggleInventory = () => {
     showInventory.value = !showInventory.value
 }
 
+const toggleTasks = () => {
+    showTasks.value = !showTasks.value
+}
+
 // Handlers for other buttons
 const handleMap = () => router.push('/map')
 const handleDantian = () => router.push('/dantian')
 const handleAttribute = () => router.push('/attribute')
-const handleQuests = () => router.push('/quests')
 const handleShop = () => router.push('/shop')
 const handleInn = () => router.push('/inn')
 const handleSect = () => router.push('/sect')
@@ -71,6 +76,12 @@ const handleSect = () => router.push('/sect')
             @close="showInventory = false" 
         />
 
+        <!-- 任务侧边栏（每日+剧情） -->
+        <TaskSidebar 
+            :show="showTasks"
+            @close="showTasks = false"
+        />
+
         <!-- Controls -->
         <ControlBar 
             @toggle-character="toggleCharacter"
@@ -78,7 +89,7 @@ const handleSect = () => router.push('/sect')
             @toggle-dantian="handleDantian"
             @toggle-attribute="handleAttribute"
             @toggle-map="handleMap"
-            @toggle-quests="handleQuests"
+            @toggle-quests="toggleTasks"
             @toggle-shop="handleShop"
             @toggle-inn="handleInn"
             @toggle-sect="handleSect"

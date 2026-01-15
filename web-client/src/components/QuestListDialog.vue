@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useQuestStore } from '../stores/quest'
 import { useCharacterStore } from '../stores/character'
 import { getQuestsByGiver, canAcceptQuest, getQuestById, QuestStatus } from '../data/quests'
@@ -43,7 +43,7 @@ const npcQuests = computed(() => {
     // 检查是否可接取
     const canAccept = !playerQuest && canAcceptQuest(
       quest,
-      characterStore.character?.level || 1,
+      characterStore.character,
       questStore.completedQuestIds
     )
     
@@ -126,6 +126,12 @@ const closeRewardDialog = () => {
 const close = () => {
   emit('close')
 }
+
+// 进入对话框时加载任务数据，确保显示最新状态
+onMounted(async () => {
+  await questStore.fetchQuests()
+  console.log('[QuestListDialog] 任务数据已加载，playerQuests:', questStore.playerQuests.length)
+})
 </script>
 
 <template>

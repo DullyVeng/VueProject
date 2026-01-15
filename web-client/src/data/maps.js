@@ -420,6 +420,230 @@ export const maps = [
             icon: '🏪',
             color: '#f39c12'
         }
+    },
+
+    // ==================== 高阶修炼区（30-50级）====================
+    {
+        id: 'demon_forest',
+        name: '暗魔林',
+        area: 'mortal_world',
+        type: 'wild',
+        level: [30, 40],
+        description: '邪气深重的魔林，暗影生物横行。据说有魔修在此修炼禁术。',
+        connections: ['valley', 'demon_ruins'],
+
+        features: ['combat', 'resource'],
+        resources: [
+            { type: 'material', id: 'dark_essence', name: '暗影精华', rarity: 'rare', dropRate: 0.25 }
+        ],
+
+        unlockRequirement: {
+            level: 30
+        },
+
+        visual: {
+            icon: '🌑',
+            color: '#1a1a1a'
+        }
+    },
+
+    {
+        id: 'demon_ruins',
+        name: '魔窟废墟',
+        area: 'secret_realm',
+        type: 'dungeon',
+        level: [35, 45],
+        description: '上古魔修遗迹，充满危险的禁制和强大的魔物。深处藏有魔宝。',
+        connections: ['demon_forest'],
+
+        features: ['combat', 'event'],
+        events: [
+            { id: 'forbidden_treasure', chance: 0.12 },
+            { id: 'magic_trap', chance: 0.2 }
+        ],
+
+        unlockRequirement: {
+            level: 35
+        },
+
+        visual: {
+            icon: '🏚️',
+            color: '#8e44ad'
+        }
+    },
+
+    {
+        id: 'thunder_peak',
+        name: '雷鸣峰',
+        area: 'sect_area',
+        type: 'wild',
+        level: [40, 50],
+        description: '终年雷霆不绝的高峰，雷系修炼者的圣地。雷霆金鹰常在此出没。',
+        connections: ['trial_tower', 'cloud_sea'],
+
+        features: ['combat', 'resource'],
+        resources: [
+            { type: 'crystal', id: 'thunder_crystal', name: '雷晶', rarity: 'rare', dropRate: 0.3 }
+        ],
+
+        unlockRequirement: {
+            level: 40
+        },
+
+        visual: {
+            icon: '⚡',
+            color: '#f1c40f'
+        }
+    },
+
+    // ==================== 天界区域（50-70级）====================
+    {
+        id: 'cloud_sea',
+        name: '云海',
+        area: 'sect_area',
+        type: 'safe',
+        level: [50, 99],
+        description: '飘渺的云海之上，传说中仙人居住的地方。需要达到金丹期才能稳定飞行至此。',
+        connections: ['thunder_peak', 'celestial_palace', 'forbidden_land'],
+
+        features: ['npc', 'quest'],
+        npcs: ['cloud_monk', 'immortal_guide'],
+
+        unlockRequirement: {
+            level: 50
+        },
+
+        visual: {
+            icon: '☁️',
+            color: '#ecf0f1'
+        }
+    },
+
+    {
+        id: 'celestial_palace',
+        name: '天宫',
+        area: 'secret_realm',
+        type: 'dungeon',
+        level: [55, 65],
+        description: '天界守卫镇守的宫殿，传说藏有仙宝。只有最强的修士才敢挑战。',
+        connections: ['cloud_sea'],
+
+        features: ['combat', 'event'],
+        events: [
+            { id: 'celestial_blessing', chance: 0.08 },
+            { id: 'immortal_treasure', chance: 0.15 }
+        ],
+
+        unlockRequirement: {
+            level: 55
+        },
+
+        visual: {
+            icon: '🏯',
+            color: '#e8b923'
+        }
+    },
+
+    {
+        id: 'ancient_battlefield',
+        name: '上古战场',
+        area: 'secret_realm',
+        type: 'wild',
+        level: [60, 70],
+        description: '上古大战的遗迹，怨气凝结成强大的灵体。危机四伏但机遇无限。',
+        connections: ['cloud_sea', 'void_rift'],
+
+        features: ['combat', 'resource', 'event'],
+        resources: [
+            { type: 'material', id: 'ancient_bone', name: '上古遗骸', rarity: 'epic', dropRate: 0.15 }
+        ],
+        events: [
+            { id: 'war_spirit', chance: 0.18 }
+        ],
+
+        unlockRequirement: {
+            level: 60
+        },
+
+        visual: {
+            icon: '⚔️',
+            color: '#c0392b'
+        }
+    },
+
+    // ==================== 虚空禁地（70-90级）====================
+    {
+        id: 'void_rift',
+        name: '虚空裂隙',
+        area: 'secret_realm',
+        type: 'dungeon',
+        level: [70, 80],
+        description: '连接不同位面的虚空裂缝，虚空生物横行。极度危险！',
+        connections: ['ancient_battlefield', 'chaos_void'],
+
+        features: ['combat', 'event'],
+        events: [
+            { id: 'void_storm', chance: 0.25 },
+            { id: 'dimension_treasure', chance: 0.1 }
+        ],
+
+        unlockRequirement: {
+            level: 70
+        },
+
+        visual: {
+            icon: '🌀',
+            color: '#9b59b6'
+        }
+    },
+
+    {
+        id: 'forbidden_land',
+        name: '生命禁区',
+        area: 'secret_realm',
+        type: 'wild',
+        level: [75, 85],
+        description: '修仙界最危险的区域之一，连元婴期修士都可能陨落。藏有惊世宝物。',
+        connections: ['cloud_sea', 'chaos_void'],
+
+        features: ['combat', 'resource'],
+        resources: [
+            { type: 'herb', id: 'phoenix_grass', name: '不死草', rarity: 'legendary', dropRate: 0.08 }
+        ],
+
+        unlockRequirement: {
+            level: 75
+        },
+
+        visual: {
+            icon: '☠️',
+            color: '#e74c3c'
+        }
+    },
+
+    {
+        id: 'chaos_void',
+        name: '混沌虚空',
+        area: 'secret_realm',
+        type: 'dungeon',
+        level: [80, 90],
+        description: '世界边缘的混沌之地，时空紊乱。只有渡劫期修士才敢进入。',
+        connections: ['void_rift', 'forbidden_land'],
+
+        features: ['combat', 'event'],
+        events: [
+            { id: 'chaos_phenomenon', chance: 0.3 },
+            { id: 'ultimate_treasure', chance: 0.05 }
+        ],
+
+        unlockRequirement: {
+            level: 80
+        },
+
+        visual: {
+            icon: '🌌',
+            color: '#34495e'
+        }
     }
 ]
 

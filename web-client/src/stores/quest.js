@@ -63,14 +63,36 @@ export const useQuestStore = defineStore('quest', () => {
         if (!quest) return false
 
         // 检查是否可接取
-        const playerLevel = characterStore.character.level
-        if (!canAcceptQuest(quest, playerLevel, completedQuestIds.value)) {
+        if (!canAcceptQuest(quest, characterStore.character, completedQuestIds.value)) {
             return false
         }
 
-        // 检查是否已接取
+        // 检查是否已接取（本地检查）
         const existing = playerQuests.value.find(q => q.quest_id === questId)
-        if (existing) return false
+        if (existing) {
+            console.warn('[Quest] 任务已在本地列表中，无法重复接取')
+            return false
+        }
+
+        // 检查是否已接取（数据库检查，防止刷新后重复领取）
+        const { data: existingInDb, error: checkError } = await supabase
+            .from('player_quests')
+            .select('id')
+            .eq('character_id', characterStore.character.id)
+            .eq('quest_id', questId)
+            .maybeSingle()
+
+        if (checkError) {
+            console.error('[Quest] 检查任务失败:', checkError)
+            return false
+        }
+
+        if (existingInDb) {
+            console.warn('[Quest] 任务已在数据库中，无法重复接取')
+            // 刷新本地任务列表以同步数据库状态
+            await fetchQuests()
+            return false
+        }
 
         // 插入数据库
         const { data, error } = await supabase
@@ -230,6 +252,7 @@ export const useQuestStore = defineStore('quest', () => {
     }
 
     return {
+        quests: playerQuests,  // 添加别名
         playerQuests,
         loading,
         completedQuestIds,

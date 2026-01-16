@@ -5,6 +5,8 @@ import { useCharacterStore } from './character'
 import { useFabaoStore } from './fabao'
 import { useInventoryStore } from './inventory'
 import { useQuestStore } from './quest'
+import { useDailyStore } from './daily'
+import { DailyTaskType } from '../data/dailyTasks'
 import { useAttributeStore } from './attribute'
 import { useExplorationStore } from './exploration'
 import { useRouter } from 'vue-router'
@@ -21,6 +23,7 @@ export const useCombatStore = defineStore('combat', () => {
     const fabaoStore = useFabaoStore()
     const inventoryStore = useInventoryStore()
     const questStore = useQuestStore()
+    const dailyStore = useDailyStore()
     const attributeStore = useAttributeStore()
     const router = useRouter()
 
@@ -732,8 +735,19 @@ export const useCombatStore = defineStore('combat', () => {
                 addLog('怪物掉落了物品！', 'special')
             }
 
-            // 更新击杀任务进度
+            // 更新击杀任务进度（剧情任务）
             questStore.checkKillQuests()
+
+            // 更新每日任务进度
+            // 1. 战斗胜利任务
+            await dailyStore.updateProgress(DailyTaskType.COMPLETE_BATTLES, 'win', 1)
+
+            // 2. 击杀怪物任务（传入怪物ID）
+            const isBoss = enemy.value.isBoss || false
+            if (isBoss) {
+                await dailyStore.updateProgress(DailyTaskType.KILL_BOSS, 'boss', 1)
+            }
+            await dailyStore.updateProgress(DailyTaskType.KILL_MONSTERS, enemy.value.id, 1)
 
             // 更新角色数据
             const newExp = characterStore.character.exp + expReward

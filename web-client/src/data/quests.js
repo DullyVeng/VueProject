@@ -145,6 +145,44 @@ export const quests = [
         },
 
         nextQuest: null
+    },
+
+    // 境界任务
+    {
+        id: 'quest_realm_zhuji',
+        name: '筑基之路',
+        type: 'realm',  // 境界任务
+        description: '你已在炼气期修炼有成，是时候突破筑基了。李长老将指导你完成突破仪式。',
+
+        giver: 'elder_li',
+
+        requirements: {
+            level: 10,
+            realm: 'lianqi',
+            realmLevel: 10,
+            completedQuests: []
+        },
+
+        objectives: [
+            {
+                type: 'realm_advance',
+                target: 'zhuji',
+                current: 0,
+                required: 1,
+                description: '突破至筑基期'
+            }
+        ],
+
+        rewards: {
+            exp: 200,
+            silver: 500,
+            items: [
+                { id: 'gongfa_yujian_jue', quantity: 1 }  // 奖励御剑诀功法
+            ],
+            unlocks: ['识海系统']
+        },
+
+        nextQuest: null
     }
 ]
 
@@ -163,11 +201,21 @@ export const getQuestById = (id) => quests.find(q => q.id === id)
 export const getQuestsByGiver = (giverId) => quests.filter(q => q.giver === giverId)
 
 // 检查任务是否可接取
-export const canAcceptQuest = (quest, playerLevel, completedQuestIds) => {
+export const canAcceptQuest = (quest, character, completedQuestIds) => {
     if (!quest.requirements) return true
 
     // 检查等级
-    if (quest.requirements.level && playerLevel < quest.requirements.level) {
+    if (quest.requirements.level && character.level < quest.requirements.level) {
+        return false
+    }
+
+    // 检查境界（新增）
+    if (quest.requirements.realm && character.realm !== quest.requirements.realm) {
+        return false
+    }
+
+    // 检查境界等级（新增）
+    if (quest.requirements.realmLevel && character.realm_level < quest.requirements.realmLevel) {
         return false
     }
 

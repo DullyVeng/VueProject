@@ -4,6 +4,8 @@ import { ref } from 'vue'
 import { supabase } from '../supabase/client'
 import { useCharacterStore } from './character'
 import { getItemById } from '../data/items'
+import { useDailyStore } from './daily'
+import { DailyTaskType } from '../data/dailyTasks'
 
 export const useInventoryStore = defineStore('inventory', () => {
     const inventory = ref([])
@@ -69,6 +71,10 @@ export const useInventoryStore = defineStore('inventory', () => {
                 })
             }
         }
+
+        // 更新每日采集任务进度
+        const dailyStore = useDailyStore()
+        await dailyStore.updateProgress(DailyTaskType.COLLECT_ITEMS, itemId, count)
     }
 
     async function useItem(inventoryItem) {

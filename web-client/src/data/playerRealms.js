@@ -5,7 +5,7 @@ export const PLAYER_REALMS = {
     lianqi: {
         name: '炼气',
         level: 1,
-        maxLevel: 10,
+        maxLevel: 9,
         description: '修炼入门境界',
         unlocks: ['基础战斗系统'],
         attributePointsPerLevel: 3
@@ -14,7 +14,7 @@ export const PLAYER_REALMS = {
     zhuji: {
         name: '筑基',
         level: 2,
-        maxLevel: 10,
+        maxLevel: 9,
         description: '筑基固本，开启识海',
         unlocks: ['识海系统', '功法系统'],
         attributePointsPerLevel: 4
@@ -23,7 +23,7 @@ export const PLAYER_REALMS = {
     jindan: {
         name: '金丹',
         level: 3,
-        maxLevel: 10,
+        maxLevel: 9,
         description: '凝聚金丹，开启丹田',
         unlocks: ['丹田系统', '法宝系统'],
         attributePointsPerLevel: 5
@@ -32,7 +32,7 @@ export const PLAYER_REALMS = {
     yuanying: {
         name: '元婴',
         level: 4,
-        maxLevel: 10,
+        maxLevel: 9,
         description: '元婴出窍，法宝温养',
         unlocks: ['法宝温养机制', '法宝强化'],
         attributePointsPerLevel: 6
@@ -41,7 +41,7 @@ export const PLAYER_REALMS = {
     huashen: {
         name: '化神',
         level: 5,
-        maxLevel: 10,
+        maxLevel: 9,
         description: '神魂蜕变，功法进阶',
         unlocks: ['功法进化', '双系功法'],
         attributePointsPerLevel: 7
@@ -50,7 +50,7 @@ export const PLAYER_REALMS = {
     lianxu: {
         name: '炼虚',
         level: 6,
-        maxLevel: 10,
+        maxLevel: 9,
         description: '炼虚合道，法宝进化',
         unlocks: ['法宝进化', '组合技'],
         attributePointsPerLevel: 8
@@ -59,7 +59,7 @@ export const PLAYER_REALMS = {
     heti: {
         name: '合体',
         level: 7,
-        maxLevel: 10,
+        maxLevel: 9,
         description: '天人合一，系统联动',
         unlocks: ['功法法宝联动'],
         attributePointsPerLevel: 9
@@ -68,7 +68,7 @@ export const PLAYER_REALMS = {
     dacheng: {
         name: '大乘',
         level: 8,
-        maxLevel: 10,
+        maxLevel: 9,
         description: '大道将成，阵法开启',
         unlocks: ['阵法系统', '三系联动'],
         attributePointsPerLevel: 10
@@ -77,7 +77,7 @@ export const PLAYER_REALMS = {
     dujie: {
         name: '渡劫',
         level: 9,
-        maxLevel: 10,
+        maxLevel: 9,
         description: '历经天劫，突破极限',
         unlocks: ['天劫试炼', '特殊被动'],
         attributePointsPerLevel: 12

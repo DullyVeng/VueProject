@@ -5,6 +5,8 @@ import { useCharacterStore } from './character'
 import { getFabaoById } from '../data/fabaos'
 import { getRarityConfig, calculateRarityStats } from '../data/fabaoRarity'
 import { getRealmConfig } from '../data/fabaoRealms'
+import { useDailyStore } from './daily'
+import { DailyTaskType } from '../data/dailyTasks'
 import {
     canPlaceFabao as canPlaceFabaoUtil,
     getFabaoOccupiedSlots,
@@ -118,11 +120,18 @@ export const useFabaoStore = defineStore('fabao', () => {
                 const finalDefense = Math.floor(baseDefense * nourishMultiplier)
                 const finalMaxHp = Math.floor(baseMaxHp * nourishMultiplier)
 
-                // 当前生命值按比例提升，保持生命值百分比不变
-                // 例如：如果原来是 110/110 (100%)，提升后应该是 118/118 (100%)
-                // 如果原来是 80/110 (72.7%)，提升后应该是 86/118 (72.7%)
-                const hpPercentage = baseMaxHp > 0 ? baseHp / baseMaxHp : 1
-                const finalHp = Math.ceil(finalMaxHp * hpPercentage)
+                // 修正：确保当前HP不超过最大HP
+                // 如果数据库中的HP异常（超过max_hp），按比例缩放到正确范围
+                let finalHp
+                if (baseHp > baseMaxHp) {
+                    // 数据异常，重置为满血
+                    finalHp = finalMaxHp
+                    console.warn(`[fetchFabaos] 法宝 ${staticData.name} HP异常修正: ${baseHp}/${baseMaxHp} -> ${finalHp}/${finalMaxHp}`)
+                } else {
+                    // 正常情况：保持生命值百分比
+                    const hpPercentage = baseMaxHp > 0 ? baseHp / baseMaxHp : 1
+                    finalHp = Math.floor(finalMaxHp * hpPercentage)
+                }
 
                 // 映射数据库字段名（snake_case）到前端字段名（camelCase）
                 const fabao = {
@@ -562,6 +571,10 @@ export const useFabaoStore = defineStore('fabao', () => {
                 fabao.defense = newDefense
                 characterStore.character.silver = currentSilver - cost
 
+                // 更新每日任务进度
+                const dailyStore = useDailyStore()
+                await dailyStore.updateProgress(DailyTaskType.ENHANCE_FABAO, 'any', 1)
+
                 return {
                     success: true,
                     cost,
@@ -576,6 +589,10 @@ export const useFabaoStore = defineStore('fabao', () => {
                     .eq('id', characterStore.character.id)
 
                 characterStore.character.silver = currentSilver - cost
+
+                // 更新每日任务进度（失败也计数）
+                const dailyStore = useDailyStore()
+                await dailyStore.updateProgress(DailyTaskType.ENHANCE_FABAO, 'any', 1)
 
                 return { success: false, reason: '强化失败', cost }
             }

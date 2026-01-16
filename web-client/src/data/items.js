@@ -269,6 +269,24 @@ export const items = [
         price: 50,
         icon: '🚩'
     },
+    {
+        id: 'iron',
+        name: '铁矿',
+        type: 'sect_material',
+        category: 'building',
+        description: '用于宗门建筑的基础铁矿。',
+        price: 3,
+        icon: '⛏️'
+    },
+    {
+        id: 'spiritStone',
+        name: '灵石',
+        type: 'currency',
+        category: 'currency',
+        description: '修仙界通用货币，用于各种消耗。',
+        price: 1,
+        icon: '💎'
+    },
 
     // ========== 建筑图纸 ==========
     {

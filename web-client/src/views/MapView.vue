@@ -13,6 +13,7 @@ import { getNpcsByLocation } from '../data/npcs'
 import NpcDialog from '../components/NpcDialog.vue'
 import ShopDialog from '../components/ShopDialog.vue'
 import QuestListDialog from '../components/QuestListDialog.vue'
+import BatchGatherDialog from '../components/BatchGatherDialog.vue'
 
 const router = useRouter()
 const gameStore = useGameStore()
@@ -82,6 +83,14 @@ const handleTravel = (mapId) => {
 
 const handleExplore = () => {
     if (currentMap.value.type === 'wild' || currentMap.value.type === 'dungeon') {
+        // 跳转到小地图探索界面
+        router.push(`/exploration/${currentMap.value.id}`)
+    }
+}
+
+// 直接战斗（保留原有功能作为备用）
+const handleDirectCombat = () => {
+    if (currentMap.value.type === 'wild' || currentMap.value.type === 'dungeon') {
         combatStore.startCombat(currentMap.value.level)
         router.push('/combat')
     }
@@ -92,6 +101,7 @@ const { addItem } = useInventoryStore()
 const gathering = ref(false)
 const gatherResult = ref(null)
 const showResult = ref(false)
+const showBatchDialog = ref(false)
 
 // 采集资源掉落算法
 const gatherResources = (mapResources) => {
@@ -173,6 +183,82 @@ const handleGather = async () => {
 const closeResult = () => {
     showResult.value = false
     gatherResult.value = null
+}
+
+// 打开批量采集对话框
+const openBatchGather = () => {
+    if (!currentMap.value.resources || currentMap.value.resources.length === 0) {
+        alert('当前地图没有可采集的资源！')
+        return
+    }
+    showBatchDialog.value = true
+}
+
+// 批量采集
+const handleBatchGather = async (times) => {
+    showBatchDialog.value = false
+    
+    const currentAP = characterStore.character?.current_action_points || 0
+    if (currentAP < times) {
+        alert('行动点不足！')
+        return
+    }
+    
+    gathering.value = true
+    
+    // 模拟采集时间
+    await new Promise(resolve => setTimeout(resolve, 800))
+    
+    const allGathered = []
+    let totalAPUsed = 0
+    
+    // 执行多次采集
+    for (let i = 0; i < times; i++) {
+        const consumed = await characterStore.consumeActionPoints(1)
+        if (!consumed) break
+        
+        totalAPUsed++
+        const gathered = gatherResources(currentMap.value.resources)
+        allGathered.push(...gathered)
+    }
+    
+    // 合并同类材料
+    const mergedItems = {}
+    allGathered.forEach(item => {
+        if (mergedItems[item.id]) {
+            mergedItems[item.id].quantity += item.quantity
+        } else {
+            mergedItems[item.id] = { ...item }
+        }
+    })
+    
+    // 添加到背包
+    for (const item of Object.values(mergedItems)) {
+        await addItem(item.id, item.quantity)
+    }
+    
+    // 更新采集任务进度
+    Object.values(mergedItems).forEach(item => {
+        questStore.checkCollectQuest(item.id)
+    })
+    
+    // 按稀有度排序结果
+    const rarityOrder = { rare: 0, uncommon: 1, common: 2 }
+    const sortedItems = Object.values(mergedItems).sort((a, b) => {
+        return (rarityOrder[a.rarity] || 3) - (rarityOrder[b.rarity] || 3)
+    })
+    
+    // 显示结果
+    gatherResult.value = {
+        success: sortedItems.length > 0,
+        items: sortedItems,
+        apUsed: totalAPUsed,
+        apRemaining: characterStore.character.current_action_points,
+        apMax: characterStore.character.max_action_points,
+        isBatch: true
+    }
+    showResult.value = true
+    gathering.value = false
 }
 
 const goHome = () => {
@@ -321,7 +407,7 @@ const visibleMaps = computed(() => {
           <!-- 操作按钮 -->
           <div class="actions">
             <button v-if="currentMap.features?.includes('combat')" class="btn-explore" @click="handleExplore">
-              ⚔️ 探索战斗
+              🗺️ 进入地图
             </button>
             <button 
               v-if="currentMap.features?.includes('resource')" 
@@ -330,6 +416,14 @@ const visibleMaps = computed(() => {
               @click="handleGather">
               <span v-if="gathering">⏳ 采集中...</span>
               <span v-else>🌿 采集资源 (1AP)</span>
+            </button>
+            <button 
+              v-if="currentMap.features?.includes('resource')" 
+              class="btn-batch-gather"
+              :disabled="gathering || (characterStore.character?.current_action_points || 0) < 1"
+              @click="openBatchGather">
+              <span v-if="gathering">⏳ 采集中...</span>
+              <span v-else>📦 批量采集</span>
             </button>
             <button v-if="currentMap.features?.includes('npc')" class="btn-npc" disabled>
               💬 寻找NPC (开发中)
@@ -489,6 +583,15 @@ const visibleMaps = computed(() => {
       v-if="showQuestList && selectedNpc"
       :npc="selectedNpc"
       @close="closeQuestList"
+    />
+
+    <!-- 批量采集对话框 -->
+    <BatchGatherDialog 
+      v-if="showBatchDialog"
+      :currentAP="characterStore.character?.current_action_points || 0"
+      :maxAP="characterStore.character?.max_action_points || 10"
+      @close="showBatchDialog = false"
+      @confirm="handleBatchGather"
     />
   </div>
 </template>
@@ -725,7 +828,41 @@ const visibleMaps = computed(() => {
   box-shadow: 0 6px 20px rgba(231, 76, 60, 0.4);
 }
 
-.btn-gather, .btn-npc {
+.btn-gather, .btn-batch-gather {
+  padding: 0.8rem 1.2rem;
+  background: linear-gradient(45deg, #2ecc71, #27ae60);
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-weight: bold;
+  font-size: 0.95rem;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(46, 204, 113, 0.3);
+  transition: all 0.3s;
+}
+
+.btn-gather:hover:not(:disabled), 
+.btn-batch-gather:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(46, 204, 113, 0.4);
+}
+
+.btn-gather:disabled, 
+.btn-batch-gather:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-batch-gather {
+  background: linear-gradient(45deg, #3498db, #2980b9);
+  box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);
+}
+
+.btn-batch-gather:hover:not(:disabled) {
+  box-shadow: 0 6px 20px rgba(52, 152, 219, 0.4);
+}
+
+.btn-npc {
   padding: 0.8rem 1.2rem;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.1);

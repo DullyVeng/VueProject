@@ -15,7 +15,11 @@ export const monsters = [
         attackPreference: {
             fabao: 0.7,  // 70%攻击法宝
             player: 0.3  // 30%攻击玩家
-        }
+        },
+        drops: [
+            { id: 'wood', chance: 0.3, amount: [1, 2] },
+            { id: 'spiritStone', chance: 0.5, amount: [1, 3] }
+        ]
     },
     {
         id: 'goblin',
@@ -32,7 +36,11 @@ export const monsters = [
         attackPreference: {
             fabao: 0.3,  // 30%攻击法宝
             player: 0.7  // 70%攻击玩家（智能，优先攻击本体）
-        }
+        },
+        drops: [
+            { id: 'iron', chance: 0.25, amount: [1, 2] },
+            { id: 'spiritStone', chance: 0.6, amount: [2, 5] }
+        ]
     },
     {
         id: 'wolf',
@@ -49,7 +57,11 @@ export const monsters = [
         attackPreference: {
             fabao: 0.7,
             player: 0.3
-        }
+        },
+        drops: [
+            { id: 'wood', chance: 0.4, amount: [1, 3] },
+            { id: 'spiritStone', chance: 0.5, amount: [2, 4] }
+        ]
     },
     {
         id: 'dark_cultist',
@@ -66,7 +78,11 @@ export const monsters = [
         attackPreference: {
             fabao: 0.5,  // 各50%
             player: 0.5
-        }
+        },
+        drops: [
+            { id: 'formationFlag', chance: 0.15, amount: [1, 1] },
+            { id: 'spiritStone', chance: 0.7, amount: [3, 6] }
+        ]
     },
     {
         id: 'zombie',
@@ -83,7 +99,11 @@ export const monsters = [
         attackPreference: {
             fabao: 0.4,
             player: 0.6  // 偏好攻击本体
-        }
+        },
+        drops: [
+            { id: 'stone', chance: 0.35, amount: [1, 2] },
+            { id: 'spiritStone', chance: 0.5, amount: [1, 4] }
+        ]
     },
     {
         id: 'fire_spirit',
@@ -101,7 +121,11 @@ export const monsters = [
             fabao: 0.8,  // 强烈倾向攻击法宝
             player: 0.2
         },
-        element: 'fire'  // 元素属性
+        element: 'fire',  // 元素属性
+        drops: [
+            { id: 'jade', chance: 0.1, amount: [1, 1] },
+            { id: 'spiritStone', chance: 0.8, amount: [4, 8] }
+        ]
     }
 ]
 

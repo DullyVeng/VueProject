@@ -64,7 +64,8 @@ export const maps = [
         features: ['combat', 'resource', 'event'],
         resources: [
             { type: 'herb', id: 'lingcao', name: '灵草', rarity: 'common', dropRate: 0.6 },
-            { type: 'herb', id: 'qingling', name: '青灵草', rarity: 'uncommon', dropRate: 0.3 }
+            { type: 'herb', id: 'qingling', name: '青灵草', rarity: 'uncommon', dropRate: 0.3 },
+            { type: 'sect_material', id: 'wood', name: '木材', rarity: 'common', dropRate: 0.5 }
         ],
         events: [
             { id: 'treasure_chest', chance: 0.1 },
@@ -93,7 +94,9 @@ export const maps = [
         features: ['combat', 'resource'],
         resources: [
             { type: 'ore', id: 'iron_ore', name: '铁矿石', rarity: 'common', dropRate: 0.5 },
-            { type: 'ore', id: 'silver_ore', name: '银矿石', rarity: 'uncommon', dropRate: 0.3 }
+            { type: 'ore', id: 'silver_ore', name: '银矿石', rarity: 'uncommon', dropRate: 0.3 },
+            { type: 'sect_material', id: 'stone', name: '石料', rarity: 'common', dropRate: 0.5 },
+            { type: 'sect_material', id: 'iron', name: '铁矿', rarity: 'common', dropRate: 0.4 }
         ],
 
         unlockRequirement: {
@@ -117,7 +120,8 @@ export const maps = [
 
         features: ['combat', 'resource', 'event'],
         resources: [
-            { type: 'crystal', id: 'dark_crystal', name: '暗影水晶', rarity: 'uncommon', dropRate: 0.4 }
+            { type: 'crystal', id: 'dark_crystal', name: '暗影水晶', rarity: 'uncommon', dropRate: 0.4 },
+            { type: 'sect_material', id: 'jade', name: '玉璧', rarity: 'rare', dropRate: 0.15 }
         ],
         events: [
             { id: 'ambush', chance: 0.15 },
@@ -334,7 +338,8 @@ export const maps = [
 
         features: ['combat', 'resource', 'event'],
         resources: [
-            { type: 'herb', id: 'frost_lotus', name: '寒冰莲', rarity: 'rare', dropRate: 0.3 }
+            { type: 'herb', id: 'frost_lotus', name: '寒冰莲', rarity: 'rare', dropRate: 0.3 },
+            { type: 'sect_material', id: 'spiritStone', name: '灵石矿', rarity: 'uncommon', dropRate: 0.3 }
         ],
         events: [
             { id: 'ice_treasure', chance: 0.15 }

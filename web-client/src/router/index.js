@@ -92,6 +92,12 @@ const router = createRouter({
             name: 'sect',
             component: () => import('../views/SectView.vue'),
             meta: { requiresAuth: true }
+        },
+        {
+            path: '/exploration/:mapId',
+            name: 'exploration',
+            component: () => import('../views/ExplorationMapView.vue'),
+            meta: { requiresAuth: true }
         }
     ]
 })

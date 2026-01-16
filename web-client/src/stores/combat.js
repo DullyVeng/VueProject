@@ -6,6 +6,7 @@ import { useFabaoStore } from './fabao'
 import { useInventoryStore } from './inventory'
 import { useQuestStore } from './quest'
 import { useAttributeStore } from './attribute'
+import { useExplorationStore } from './exploration'
 import { useRouter } from 'vue-router'
 import { supabase } from '../supabase/client'
 import {
@@ -596,7 +597,14 @@ export const useCombatStore = defineStore('combat', () => {
                 fabao.isSummoned = false
             }
 
-            router.push('/map')
+            // 检查是否从探索地图进入战斗
+            const explorationStore = useExplorationStore()
+            if (explorationStore.isInCombat && explorationStore.currentMapId) {
+                explorationStore.isInCombat = false
+                router.push(`/exploration/${explorationStore.currentMapId}`)
+            } else {
+                router.push('/map')
+            }
         } else {
             addLog('逃跑失败！', 'info')
             // 敌人获得一次攻击机会
@@ -702,10 +710,25 @@ export const useCombatStore = defineStore('combat', () => {
             addLog(`获得${expReward}点经验值`, 'info')
             addLog(`获得${silverReward}灵石`, 'info')
 
-            // 物品掉落（50%概率）
+            // 材料掉落系统（使用怪物配置的drops）
+            const droppedItems = []
+            if (enemy.value.drops && Array.isArray(enemy.value.drops)) {
+                for (const drop of enemy.value.drops) {
+                    if (Math.random() < drop.chance) {
+                        const [minAmount, maxAmount] = drop.amount
+                        const amount = Math.floor(Math.random() * (maxAmount - minAmount + 1)) + minAmount
+                        await inventoryStore.addItem(drop.id, amount)
+                        droppedItems.push({ id: drop.id, amount })
+                        addLog(`获得 ${drop.id} x${amount}`, 'special')
+                    }
+                }
+            }
+
+            // 物品掉落（50%概率，保留原有逻辑）
             if (Math.random() > 0.5) {
                 const dropItemId = Math.random() > 0.5 ? 'potion_hp_small' : 'potion_mp_small'
                 await inventoryStore.addItem(dropItemId, 1)
+                droppedItems.push({ id: dropItemId, amount: 1 })
                 addLog('怪物掉落了物品！', 'special')
             }
 
@@ -812,7 +835,18 @@ export const useCombatStore = defineStore('combat', () => {
             .eq('id', characterStore.character.id)
 
         isInCombat.value = false
-        router.push('/map')
+
+        // 检查是否从探索地图进入战斗
+        const explorationStore = useExplorationStore()
+        if (explorationStore.isInCombat && explorationStore.currentMapId) {
+            // 重置战斗标记
+            explorationStore.isInCombat = false
+            // 返回探索地图
+            router.push(`/exploration/${explorationStore.currentMapId}`)
+        } else {
+            // 返回大地图
+            router.push('/map')
+        }
     }
 
     // ==================== 辅助函数 ====================

@@ -205,7 +205,13 @@ export const useExplorationStore = defineStore('exploration', () => {
         if (x < 0 || x >= currentMap.value.width || y < 0 || y >= currentMap.value.height) {
             return TERRAIN_TYPES.WALL
         }
-        return currentMap.value.terrain[y][x]
+
+        // 兼容 1D Int8Array 和 2D 数组
+        if (currentMap.value.terrain.length === currentMap.value.width * currentMap.value.height) {
+            return currentMap.value.terrain[y * currentMap.value.width + x]
+        } else {
+            return currentMap.value.terrain[y][x]
+        }
     }
 
     // ==================== 位置持久化 ====================

@@ -1,3 +1,5 @@
+import { DiggerMapGenerator } from '../utils/mapGenerator.js'
+
 /**
  * 小地图探索系统数据配置
  * 包含可探索地图的网格数据、怪物配置等
@@ -41,61 +43,82 @@ export const TERRAIN_STYLES = {
     }
 }
 
-/**
- * 小地图配置
- * 每个大地图对应一个小地图探索区域
- */
-export const explorationMaps = {
-    // 迷雾森林探索地图
+// 初始化生成器
+const generator = new DiggerMapGenerator()
+
+// 辅助函数：为生成的地图放置显性怪物
+const placeMonsters = (map, monstersConfig) => {
+    const placedMonsters = []
+    const usedPositions = new Set()
+
+    // 简单的随机放置尝试
+    const getRandomPos = () => {
+        let attempts = 0
+        while (attempts < 100) {
+            const x = Math.floor(Math.random() * map.width)
+            const y = Math.floor(Math.random() * map.height)
+            const idx = y * map.width + x
+            // 确保在地面或草地上，且不与出生点重叠
+            if ((map.terrain[idx] === TERRAIN_TYPES.GROUND || map.terrain[idx] === TERRAIN_TYPES.GRASS) &&
+                !(x === map.spawnPoint.x && y === map.spawnPoint.y) &&
+                !usedPositions.has(idx)) {
+                return { x, y, idx }
+            }
+            attempts++
+        }
+        return null
+    }
+
+    monstersConfig.forEach(m => {
+        const pos = getRandomPos()
+        if (pos) {
+            placedMonsters.push({
+                ...m,
+                x: pos.x,
+                y: pos.y
+            })
+            usedPositions.add(pos.idx)
+        }
+    })
+
+    return placedMonsters
+}
+
+const generateMapData = (baseConfig, genOptions) => {
+    const generated = generator.generateMap(baseConfig.width, baseConfig.height, genOptions)
+
+    // 重新放置怪物
+    const visibleMonsters = placeMonsters(generated, baseConfig.visibleMonsters)
+
+    return {
+        ...baseConfig,
+        ...generated,
+        visibleMonsters
+    }
+}
+
+// 基础配置
+const baseConfigs = {
     forest: {
         id: 'forest',
         name: '迷雾森林探索区',
-        parentMapId: 'forest',        // 关联大地图ID
-        width: 200,                   // 地图宽度（格数）
-        height: 150,                  // 地图高度（格数）
-        tileSize: 32,                 // 每格像素大小
-        encounterRate: 0.15,          // 基础隐性遭遇率 (15%)
-        grassEncounterBonus: 0.10,    // 草地额外遭遇率加成
-
-        // 地形数据 (二维数组，使用 TERRAIN_TYPES 常量)
-        // 0=地面, 1=墙壁, 2=障碍物, 4=草地, 9=出口
-        terrain: [
-            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-            [9, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 4, 4, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 4, 4, 0, 0, 1],
-            [1, 0, 4, 4, 4, 4, 0, 0, 2, 0, 0, 0, 0, 0, 4, 4, 4, 4, 0, 1],
-            [1, 0, 0, 4, 4, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 4, 4, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-            [1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 1],
-            [1, 0, 0, 4, 4, 0, 0, 2, 0, 0, 0, 0, 0, 4, 4, 4, 0, 0, 0, 1],
-            [1, 0, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 4, 4, 4, 4, 4, 0, 0, 1],
-            [1, 0, 0, 4, 4, 0, 0, 0, 0, 2, 0, 0, 0, 4, 4, 4, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9],
-            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-        ],
-
-        // 玩家出生点
-        spawnPoint: { x: 100, y: 75 },  // 地图中心
-
-        // 显性怪物（地图上可见的怪物）
+        parentMapId: 'forest',
+        width: 200,
+        height: 150,
+        tileSize: 32,
+        encounterRate: 0.05,
+        grassEncounterBonus: 0.10,
         visibleMonsters: [
-            { id: 'slime_1', monsterId: 'slime', x: 50, y: 30, level: 1 },
-            { id: 'slime_2', monsterId: 'slime', x: 150, y: 100, level: 2 },
-            { id: 'wolf_1', monsterId: 'wolf', x: 80, y: 120, level: 3 }
+            { id: 'slime_1', monsterId: 'slime', level: 1 },
+            { id: 'slime_2', monsterId: 'slime', level: 2 },
+            { id: 'wolf_1', monsterId: 'wolf', level: 3 }
         ],
-
-        // 隐性怪物池（随机遭遇时从中选择）
         hiddenMonsters: [
             { monsterId: 'slime', weight: 50, levelRange: [1, 3] },
             { monsterId: 'wolf', weight: 30, levelRange: [2, 4] },
             { monsterId: 'boar', weight: 20, levelRange: [3, 5] }
         ]
     },
-
-    // 青石山探索地图
     mountain: {
         id: 'mountain',
         name: '青石山探索区',
@@ -103,42 +126,18 @@ export const explorationMaps = {
         width: 200,
         height: 150,
         tileSize: 32,
-        encounterRate: 0.18,
+        encounterRate: 0.05,
         grassEncounterBonus: 0.08,
-
-        terrain: [
-            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-            [9, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1],
-            [1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9],
-            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-        ],
-
-        spawnPoint: { x: 100, y: 75 },
-
         visibleMonsters: [
-            { id: 'rock_golem_1', monsterId: 'slime', x: 60, y: 50, level: 4 },
-            { id: 'mountain_wolf_1', monsterId: 'wolf', x: 140, y: 90, level: 5 }
+            { id: 'rock_golem_1', monsterId: 'slime', level: 4 },
+            { id: 'mountain_wolf_1', monsterId: 'wolf', level: 5 }
         ],
-
         hiddenMonsters: [
             { monsterId: 'slime', weight: 30, levelRange: [3, 5] },
             { monsterId: 'wolf', weight: 40, levelRange: [4, 6] },
             { monsterId: 'boar', weight: 30, levelRange: [5, 7] }
         ]
     },
-
-    // 幽暗洞穴探索地图
     cave: {
         id: 'cave',
         name: '幽暗洞穴探索区',
@@ -146,41 +145,29 @@ export const explorationMaps = {
         width: 200,
         height: 150,
         tileSize: 32,
-        encounterRate: 0.22,          // 洞穴遭遇率更高
+        encounterRate: 0.05,
         grassEncounterBonus: 0,
-
-        terrain: [
-            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-            [9, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1],
-            [1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
-            [1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1],
-            [1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 1],
-            [1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1],
-            [1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 1],
-            [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9],
-            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-        ],
-
-        spawnPoint: { x: 100, y: 75 },
-
         visibleMonsters: [
-            { id: 'cave_bat_1', monsterId: 'slime', x: 50, y: 30, level: 6 },
-            { id: 'cave_spider_1', monsterId: 'wolf', x: 150, y: 80, level: 7 },
-            { id: 'shadow_beast_1', monsterId: 'boar', x: 80, y: 110, level: 8 }
+            { id: 'cave_bat_1', monsterId: 'slime', level: 6 },
+            { id: 'cave_spider_1', monsterId: 'wolf', level: 7 },
+            { id: 'shadow_beast_1', monsterId: 'boar', level: 8 }
         ],
-
         hiddenMonsters: [
             { monsterId: 'slime', weight: 25, levelRange: [5, 8] },
             { monsterId: 'wolf', weight: 35, levelRange: [6, 9] },
             { monsterId: 'boar', weight: 40, levelRange: [7, 10] }
         ]
     }
+}
+
+/**
+ * 小地图配置
+ * 每个大地图对应一个小地图探索区域
+ */
+export const explorationMaps = {
+    forest: generateMapData(baseConfigs.forest, { roomCount: 15, roomSizeRange: [6, 15] }),
+    mountain: generateMapData(baseConfigs.mountain, { roomCount: 12, roomSizeRange: [8, 18], minWalkableRatio: 0.35 }),
+    cave: generateMapData(baseConfigs.cave, { roomCount: 20, roomSizeRange: [5, 12] })
 }
 
 /**
@@ -193,6 +180,26 @@ export const getExplorationMap = (mapId) => {
 }
 
 /**
+ * 获取指定位置的地形
+ * @param {Object} map - 小地图配置
+ * @param {number} x - X坐标
+ * @param {number} y - Y坐标
+ * @returns {number} 地形类型
+ */
+export const getTerrainAt = (map, x, y) => {
+    if (!map || x < 0 || x >= map.width || y < 0 || y >= map.height) {
+        return TERRAIN_TYPES.WALL
+    }
+    // 兼容一维 Int8Array 和二维数组（如果还有遗留）
+    if (map.terrain instanceof Int8Array) {
+        return map.terrain[y * map.width + x]
+    } else if (Array.isArray(map.terrain) && Array.isArray(map.terrain[0])) {
+        return map.terrain[y][x]
+    }
+    return TERRAIN_TYPES.WALL
+}
+
+/**
  * 检查坐标是否可行走
  * @param {Object} map - 小地图配置
  * @param {number} x - X坐标
@@ -200,12 +207,9 @@ export const getExplorationMap = (mapId) => {
  * @returns {boolean} 是否可行走
  */
 export const isWalkable = (map, x, y) => {
-    // 边界检查
-    if (x < 0 || x >= map.width || y < 0 || y >= map.height) {
-        return false
-    }
+    // 使用 getTerrainAt 统一访问
+    const terrain = getTerrainAt(map, x, y)
 
-    const terrain = map.terrain[y][x]
     // 地面、草地、出口可行走
     return terrain === TERRAIN_TYPES.GROUND ||
         terrain === TERRAIN_TYPES.GRASS ||
@@ -220,10 +224,8 @@ export const isWalkable = (map, x, y) => {
  * @returns {boolean} 是否为出口
  */
 export const isExit = (map, x, y) => {
-    if (x < 0 || x >= map.width || y < 0 || y >= map.height) {
-        return false
-    }
-    return map.terrain[y][x] === TERRAIN_TYPES.EXIT
+    const terrain = getTerrainAt(map, x, y)
+    return terrain === TERRAIN_TYPES.EXIT
 }
 
 /**
@@ -235,9 +237,10 @@ export const isExit = (map, x, y) => {
  */
 export const getEncounterRate = (map, x, y) => {
     let rate = map.encounterRate
+    const terrain = getTerrainAt(map, x, y)
 
     // 草地增加遭遇率
-    if (map.terrain[y]?.[x] === TERRAIN_TYPES.GRASS) {
+    if (terrain === TERRAIN_TYPES.GRASS) {
         rate += map.grassEncounterBonus || 0
     }
 

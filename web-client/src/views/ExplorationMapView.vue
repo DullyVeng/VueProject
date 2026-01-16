@@ -138,12 +138,26 @@ const drawMap = () => {
     ctx.translate(-clampedCameraX, -clampedCameraY)
 
     // 绘制地形
-    for (let y = 0; y < map.height; y++) {
-        for (let x = 0; x < map.width; x++) {
-            // 使用模运算让原始20x15地形平铺到200x150
-            const terrainY = y % map.terrain.length
-            const terrainX = x % map.terrain[0].length
-            const terrain = map.terrain[terrainY][terrainX]
+    // 绘制地形
+    // 视口裁剪优化：只渲染当前屏幕可见范围内的格子
+    // 计算可见区域的起始和结束索引（加减 1 是为了防止边缘闪烁）
+    const startX = Math.max(0, Math.floor(clampedCameraX / TILE_SIZE))
+    const endX = Math.min(map.width, Math.ceil((clampedCameraX + canvas.width) / TILE_SIZE))
+    const startY = Math.max(0, Math.floor(clampedCameraY / TILE_SIZE))
+    const endY = Math.min(map.height, Math.ceil((clampedCameraY + canvas.height) / TILE_SIZE))
+
+    for (let y = startY; y < endY; y++) {
+        for (let x = startX; x < endX; x++) {
+            // 访问地形数据 (兼容 1D Int8Array 和 2D 数组)
+            let terrain
+            if (map.terrain.length === map.width * map.height) {
+                 // 1D 数组
+                 terrain = map.terrain[y * map.width + x]
+            } else {
+                 // 2D 数组 (旧兼容)
+                 terrain = map.terrain[y][x]
+            }
+            
             const style = TERRAIN_STYLES[terrain] || TERRAIN_STYLES[TERRAIN_TYPES.GROUND]
 
             ctx.fillStyle = style.color

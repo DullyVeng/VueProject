@@ -136,6 +136,50 @@ export const npcs = [
         },
 
         quests: ['quest_side_001']  // 收集妖兽内丹任务
+    },
+
+    // 修仙坊市 - 法宝商人
+    {
+        id: 'fabao_merchant',
+        name: '法宝商人',
+        type: 'fabao_shop',
+        avatar: '🔮',
+        location: 'market',
+        description: '专门收购和出售各类法宝的神秘商人。',
+
+        dialogues: {
+            greeting: {
+                text: '道友可是为了寻觅趁手的法宝而来？我这里的货色绝对包你满意。',
+                options: [
+                    { text: '🔮 查看法宝', action: 'open_fabao_shop' },
+                    { text: '告辞', action: 'close' }
+                ]
+            }
+        },
+
+        fabaoShop: true
+    },
+
+    // 宗门 - 宗门执事
+    {
+        id: 'sect_executor',
+        name: '宗门执事',
+        type: 'sect_shop',
+        avatar: '📜',
+        location: 'outer_plaza',
+        description: '负责宗门贡献兑换和日常事务的执事。',
+
+        dialogues: {
+            greeting: {
+                text: '为宗门做出贡献的弟子，理应得到奖赏。',
+                options: [
+                    { text: '🏛️ 贡献兑换', action: 'open_sect_shop' },
+                    { text: '告辞', action: 'close' }
+                ]
+            }
+        },
+
+        sectShop: true
     }
 ]
 

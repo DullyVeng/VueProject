@@ -19,6 +19,7 @@ import {
 } from '../data/fabaoSkills'
 import { getDropPoolByLevel } from '../data/fabaoDrops'
 import { getFabaoById } from '../data/fabaos'
+import { getItemById } from '../data/items'
 
 export const useCombatStore = defineStore('combat', () => {
     const characterStore = useCharacterStore()
@@ -55,6 +56,9 @@ export const useCombatStore = defineStore('combat', () => {
     // 技能使用记录（上一回合使用的技能，用于智能记忆）
     const lastUsedSkills = ref({})  // { fabaoId: skillId }
 
+    // 战斗结算锁，防止重复结算
+    const isSettling = ref(false)
+
     // ==================== 辅助方法 ====================
 
     function addLog(message, type = 'info') {
@@ -77,6 +81,9 @@ export const useCombatStore = defineStore('combat', () => {
      */
     async function startCombat(levelRange) {
         const enemyData = getRandomMonster(levelRange)
+
+        // 重置结算锁
+        isSettling.value = false
 
         // 克隆敌人数据
         enemy.value = {
@@ -703,6 +710,9 @@ export const useCombatStore = defineStore('combat', () => {
      * 结束战斗
      */
     async function endCombat(isWin) {
+        if (isSettling.value) return // 如果正在结算则跳过
+        isSettling.value = true
+
         isInCombat.value = false
         combatPhase.value = 'settlement'
 
@@ -710,31 +720,49 @@ export const useCombatStore = defineStore('combat', () => {
             addLog('=== 战斗胜利！===', 'special')
 
             const expReward = enemy.value.expReward
-            const silverReward = enemy.value.silverReward
+            let silverReward = enemy.value.silverReward // 使用 let，因为可能有额外掉落
 
-            addLog(`获得${expReward}点经验值`, 'info')
-            addLog(`获得${silverReward}灵石`, 'info')
+            // 暂存所有掉落物品，避免重复添加导致的并发冲突
+            const rewardsMap = new Map()
 
-            // 材料掉落系统（使用怪物配置的drops）
-            const droppedItems = []
+            // 辅助函数：添加奖励到暂存区
+            const addReward = (itemId, amount) => {
+                const current = rewardsMap.get(itemId) || 0
+                rewardsMap.set(itemId, current + amount)
+            }
+
+            // 1. 材料掉落系统（使用怪物配置的drops）
             if (enemy.value.drops && Array.isArray(enemy.value.drops)) {
                 for (const drop of enemy.value.drops) {
                     if (Math.random() < drop.chance) {
                         const [minAmount, maxAmount] = drop.amount
                         const amount = Math.floor(Math.random() * (maxAmount - minAmount + 1)) + minAmount
-                        await inventoryStore.addItem(drop.id, amount)
-                        droppedItems.push({ id: drop.id, amount })
-                        addLog(`获得 ${drop.id} x${amount}`, 'special')
+
+                        // 特殊处理灵石：不进入背包，直接累加到结算灵石中
+                        if (drop.id === 'spiritStone') {
+                            silverReward += amount
+                        } else {
+                            addReward(drop.id, amount)
+                        }
                     }
                 }
             }
 
-            // 物品掉落（50%概率，保留原有逻辑）
+            // 2. 额外物品掉落（50%概率）
             if (Math.random() > 0.5) {
                 const dropItemId = Math.random() > 0.5 ? 'potion_hp_small' : 'potion_mp_small'
-                await inventoryStore.addItem(dropItemId, 1)
-                droppedItems.push({ id: dropItemId, amount: 1 })
-                addLog('怪物掉落了物品！', 'special')
+                addReward(dropItemId, 1)
+            }
+
+            // 3. 统一处理物品添加和日志
+            const droppedItems = []
+            for (const [itemId, amount] of rewardsMap.entries()) {
+                await inventoryStore.addItem(itemId, amount)
+                droppedItems.push({ id: itemId, amount })
+
+                const itemConfig = getItemById(itemId)
+                const itemName = itemConfig ? itemConfig.name : itemId
+                addLog(`获得 ${itemName} x${amount}`, 'special')
             }
 
             // --- 法宝掉落判定 ---
@@ -745,20 +773,27 @@ export const useCombatStore = defineStore('combat', () => {
             // 基础掉落率调整：普通怪较低，Boss较高
             const dropRateMultiplier = enemy.value.isBoss ? 2.0 : 1.0
 
-            for (const drop of dropPool) {
-                // 最终掉落率 = 基础掉落率 * 倍率
-                const finalRate = drop.rate * dropRateMultiplier
+            if (dropPool && dropPool.fabaos) {
+                for (const fabaoId of dropPool.fabaos) {
+                    // 最终掉落率 = 基础掉落率 * 倍率
+                    const finalRate = (dropPool.baseDropRate || 0.01) * dropRateMultiplier
 
-                if (Math.random() < finalRate) {
-                    // 掉落成功！
-                    const fabaoConfig = getFabaoById(drop.fabaoId)
-                    if (fabaoConfig) {
-                        try {
-                            await fabaoStore.addFabao(drop.fabaoId, fabaoConfig.realm, fabaoConfig.rarity)
-                            dropFabaos.push(fabaoConfig)
-                            addLog(`✨ 机缘已到！获得了法宝 [${fabaoConfig.name}]！`, 'special')
-                        } catch (e) {
-                            console.error('添加掉落法宝失败:', e)
+                    if (Math.random() < finalRate) {
+                        // 掉落成功！
+                        const fabaoConfig = getFabaoById(fabaoId)
+                        if (fabaoConfig) {
+                            try {
+                                // 默认使用随机品阶，这里简化为 Common，或者根据 rarityWeights 计算
+                                // 目前 addFabao 第二个参数是 realm，第三个是 rarity
+                                // 我们可以根据 dropPool.rarityWeights 随机一个 rarity
+                                // 暂时简单处理：直接添加
+                                await fabaoStore.addFabao(fabaoId, fabaoConfig.realm, 'common') // 默认 common, 或需改进
+
+                                dropFabaos.push(fabaoConfig)
+                                addLog(`✨ 机缘已到！获得了法宝 [${fabaoConfig.name}]！`, 'special')
+                            } catch (e) {
+                                console.error('添加掉落法宝失败:', e)
+                            }
                         }
                     }
                 }
@@ -789,6 +824,9 @@ export const useCombatStore = defineStore('combat', () => {
                 exp: newExp,
                 silver: newSilver
             }
+
+            // 战斗结束后恢复法宝灵力
+            await fabaoStore.restoreAllFabaosMp()
 
             // 升级判断
             if (newExp >= reqExp) {

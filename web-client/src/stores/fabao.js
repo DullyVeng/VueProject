@@ -14,6 +14,7 @@ import {
     rotateFabaoShape,
     removeOuterGrid
 } from '../utils/dantianUtils'
+import { fabaoShopItems } from '../data/fabaoShop'
 
 export const useFabaoStore = defineStore('fabao', () => {
     const fabaos = ref([])  // 玩家拥有的所有法宝实例
@@ -25,7 +26,7 @@ export const useFabaoStore = defineStore('fabao', () => {
 
     // 丹田中的法宝（包括损毁的，方便用户释放）
     const dantianFabaos = computed(() =>
-        fabaos.value.filter(f => f.isInDantian)
+        fabaos.value.filter(f => f.isInDantian && f.dantianPosition)
     )
 
     // 已召唤的法宝
@@ -40,7 +41,7 @@ export const useFabaoStore = defineStore('fabao', () => {
 
     // 可召唤的法宝（在丹田且未损毁且未召唤）
     const availableFabaos = computed(() =>
-        fabaos.value.filter(f => f.isInDantian && !f.isDamaged && !f.isSummoned)
+        fabaos.value.filter(f => f.isInDantian && f.dantianPosition && !f.isDamaged && !f.isSummoned)
     )
 
     // 计算当前丹田占用情况
@@ -244,7 +245,12 @@ export const useFabaoStore = defineStore('fabao', () => {
                     max_enhance_level: realmConfig.maxEnhanceLevel,
                     current_shape: staticData.shape,
                     original_grid_count: countGrids(staticData.shape),
-                    current_grid_count: countGrids(staticData.shape)
+                    current_grid_count: countGrids(staticData.shape),
+                    // 明确设置新法宝为未装备状态
+                    is_in_dantian: false,
+                    dantian_position: null,
+                    is_damaged: false,
+                    is_summoned: false
                 })
                 .select()
                 .single()
@@ -258,7 +264,12 @@ export const useFabaoStore = defineStore('fabao', () => {
                 rarityConfig,
                 realmConfig,
                 nourishBonus: { level: 0, hpBonus: 0, attackBonus: 0, defenseBonus: 0 },
-                finalStats
+                finalStats,
+                // 确保本地状态也是未装备
+                isInDantian: false,
+                isDamaged: false,
+                isSummoned: false,
+                dantianPosition: null
             })
 
             return data
@@ -488,6 +499,63 @@ export const useFabaoStore = defineStore('fabao', () => {
     }
 
     /**
+     * 出售法宝
+     */
+    async function sellFabao(fabaoId) {
+        const fabao = fabaos.value.find(f => f.id === fabaoId)
+        if (!fabao) return { success: false, reason: '法宝不存在' }
+        if (fabao.isInDantian) return { success: false, reason: '丹田中的法宝不能出售' }
+
+        const sellPrice = calculateSellPrice(fabao)
+
+        try {
+            const { error: err } = await supabase
+                .from('fabao_instances')
+                .delete()
+                .eq('id', fabaoId)
+
+            if (err) throw err
+
+            // 获得灵石
+            await characterStore.gainSilver(sellPrice)
+
+            // 从本地数组移除
+            const index = fabaos.value.findIndex(f => f.id === fabaoId)
+            if (index !== -1) {
+                fabaos.value.splice(index, 1)
+            }
+
+            return { success: true, price: sellPrice }
+        } catch (err) {
+            console.error('出售法宝失败:', err)
+            return { success: false, reason: err.message }
+        }
+    }
+
+    /**
+     * 计算法宝出售价格
+     */
+    function calculateSellPrice(fabao) {
+        // 如果商店里有买，按买价的40%
+        const shopItem = fabaoShopItems.find(i => i.fabaoId === fabao.fabao_id)
+        if (shopItem) {
+            return Math.floor(shopItem.price * 0.4)
+        }
+
+        // 默认按品阶和境界计算
+        const rarityWeights = { common: 1, fine: 2, rare: 4, epic: 8, legendary: 20 }
+        const realmWeights = { '灵器': 100, '真器': 300, '宝器': 800, '灵宝': 2000 }
+
+        const rarityBonus = rarityWeights[fabao.rarity] || 1
+        const realmBase = realmWeights[fabao.realm] || 100
+
+        // 加上强化等级的价值
+        const enhanceValue = (fabao.enhance_level || 0) * 100
+
+        return Math.floor(realmBase * rarityBonus * 0.5) + enhanceValue
+    }
+
+    /**
    * 强化法宝
    */
     async function enhanceFabao(fabaoId) {
@@ -597,8 +665,102 @@ export const useFabaoStore = defineStore('fabao', () => {
                 return { success: false, reason: '强化失败', cost }
             }
         } catch (err) {
-            console.error('强化法宝失败:', err)
             return { success: false, reason: err.message }
+        }
+    }
+
+    /**
+     * 恢复所有法宝状态（客栈休息用）
+     * @param {number} percentage 恢复比例 (0.5 或 1.0)
+     */
+    async function restoreAllFabaos(percentage = 1.0) {
+        if (!characterStore.character) return
+
+        const updates = []
+
+        for (const fabao of fabaos.value) {
+            // 跳过已损毁的法宝
+            if (fabao.isDamaged) continue
+
+            // 跳过满状态的法宝
+            const currentMp = fabao.mp || 0
+            const maxMp = fabao.max_mp || 100 // 默认值
+
+            if (fabao.hp >= fabao.max_hp && currentMp >= maxMp) continue
+
+            let newHp = fabao.max_hp
+            let newMp = maxMp
+
+            if (percentage < 1.0) {
+                // 部分恢复：增加 50% max_hp/mp，但不超过上限
+                const healHp = Math.floor(fabao.max_hp * percentage)
+                const healMp = Math.floor(maxMp * percentage)
+
+                newHp = Math.min(fabao.max_hp, fabao.hp + healHp)
+                newMp = Math.min(maxMp, currentMp + healMp)
+            }
+
+            updates.push({
+                id: fabao.id,
+                hp: newHp,
+                mp: newMp
+            })
+
+            // 更新本地状态
+            fabao.hp = newHp
+            fabao.mp = newMp
+        }
+
+        if (updates.length > 0) {
+            // 循环更新数据库
+            for (const update of updates) {
+                await supabase
+                    .from('fabao_instances')
+                    .update({ hp: update.hp, mp: update.mp })
+                    .eq('id', update.id)
+            }
+            console.log(`[FabaoStore] 已恢复 ${updates.length} 个法宝的状态`)
+        }
+    }
+
+    /**
+     * 仅恢复所有法宝的MP（战斗结束用）
+     */
+    async function restoreAllFabaosMp() {
+        if (!characterStore.character) return
+
+        const updates = []
+
+        for (const fabao of fabaos.value) {
+            // 跳过已损毁的法宝
+            if (fabao.isDamaged) continue
+
+            // 跳过满MP的法宝
+            const currentMp = fabao.mp || 0
+            const maxMp = fabao.max_mp || 100
+
+            if (currentMp >= maxMp) continue
+
+            const newMp = maxMp
+
+            updates.push({
+                id: fabao.id,
+                mp: newMp
+            })
+
+            // 更新本地状态
+            fabao.mp = newMp
+        }
+
+        if (updates.length > 0) {
+            // 循环更新数据库（只更新MP）
+            for (const update of updates) {
+                await supabase
+                    .from('fabao_instances')
+                    .update({ mp: update.mp })
+                    .eq('id', update.id)
+            }
+            console.log(`[FabaoStore] 已恢复 ${updates.length} 个法宝的灵力`)
         }
     }
 
@@ -885,12 +1047,16 @@ export const useFabaoStore = defineStore('fabao', () => {
         placeFabaoInDantian,
         calculateRepairCost,
         repairFabao,
+        sellFabao,
+        calculateSellPrice,
         enhanceFabao,
         calculateNourishBonus,
         updateNourishLevel,
         startNourish,
         stopNourish,
         summonFabao,
-        damageFabao
+        damageFabao,
+        restoreAllFabaos,
+        restoreAllFabaosMp
     }
 })

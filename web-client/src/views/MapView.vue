@@ -1,11 +1,12 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGameStore } from '../stores/game'
 import { useCombatStore } from '../stores/combat'
 import { useCharacterStore } from '../stores/character'
 import { useInventoryStore } from '../stores/inventory'
 import { useQuestStore } from '../stores/quest'
+import { useExplorationStore } from '../stores/exploration'
 import { maps, areas, getMapById, getConnectedMaps, getUnlockedMaps } from '../data/maps'
 import { mapPositions } from '../data/mapPositions'
 import { getItemById } from '../data/items'
@@ -22,6 +23,33 @@ const gameStore = useGameStore()
 const combatStore = useCombatStore()
 const characterStore = useCharacterStore()
 const questStore = useQuestStore()
+const explorationStore = useExplorationStore()
+
+// 检查并恢复位置
+onMounted(async () => {
+    // 先初始化 gameStore，确保从数据库加载了位置信息
+    if (!gameStore.isInitialized) {
+        await gameStore.initialize()
+    }
+    
+    const currentMap = characterStore.character?.current_map_id
+    if (currentMap) {
+        // 检查是否是小地图ID（不在大地图列表中）
+        const isExplorationMap = !maps.find(m => m.id === currentMap)
+        
+        if (isExplorationMap) {
+            // 自动跳转到小地图
+            console.log(`[MapView] 检测到角色在小地图 ${currentMap}，自动跳转`)
+            router.push(`/exploration/${currentMap}`)
+        } else {
+            // 在大地图中，更新gameStore位置
+            if (currentMap !== gameStore.currentLocationId) {
+                console.log(`[MapView] 恢复位置到 ${currentMap}`)
+                gameStore.currentLocationId = currentMap
+            }
+        }
+    }
+})
 
 const currentMap = computed(() => getMapById(gameStore.currentLocationId))
 const connections = computed(() => getConnectedMaps(gameStore.currentLocationId))

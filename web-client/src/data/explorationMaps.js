@@ -190,11 +190,22 @@ export const getTerrainAt = (map, x, y) => {
     if (!map || x < 0 || x >= map.width || y < 0 || y >= map.height) {
         return TERRAIN_TYPES.WALL
     }
-    // 兼容一维 Int8Array 和二维数组（如果还有遗留）
+
+    // 兼容多种格式：
+    // 1. Int8Array (1D)
+    // 2. 普通数组 (1D) - 从 localStorage 加载
+    // 3. 2D 数组 (如果还有遗留)
     if (map.terrain instanceof Int8Array) {
         return map.terrain[y * map.width + x]
-    } else if (Array.isArray(map.terrain) && Array.isArray(map.terrain[0])) {
-        return map.terrain[y][x]
+    } else if (Array.isArray(map.terrain)) {
+        // 检查是1D还是2D数组
+        if (Array.isArray(map.terrain[0])) {
+            // 2D 数组
+            return map.terrain[y][x]
+        } else {
+            // 1D 数组（从 localStorage 加载的格式）
+            return map.terrain[y * map.width + x]
+        }
     }
     return TERRAIN_TYPES.WALL
 }

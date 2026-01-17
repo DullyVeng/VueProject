@@ -39,7 +39,8 @@ export const npcs = [
                 'potion_mp_small',
                 'sword_iron',
                 'robe_cloth',
-                'hat_bamboo'
+                'hat_bamboo',
+                'teleport_stone'
             ]
         },
 

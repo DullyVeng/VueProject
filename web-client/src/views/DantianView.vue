@@ -1,8 +1,8 @@
 <template>
   <div class="dantian-view" @keydown="handleKeyDown" tabindex="0" ref="viewRef">
     <div class="page-header">
-      <button @click="$router.push('/')" class="btn-back">
-        ← 返回主界面
+      <button @click="handleBack" class="btn-back">
+        ← 返回
       </button>
       <h1>丹田管理</h1>
       <div class="spacer"></div>
@@ -444,13 +444,29 @@
 
 <script setup>
 import { ref, computed, onMounted, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
 import { useFabaoStore } from '../stores/fabao'
 import { useCharacterStore } from '../stores/character'
+import { useExplorationStore } from '../stores/exploration'
 import { supabase } from '../supabase/client'
 import { rotateFabaoShape, countGrids, canPlaceFabao as canPlaceFabaoUtil, getFabaoOccupiedSlots } from '../utils/dantianUtils'
 
+const router = useRouter()
 const fabaoStore = useFabaoStore()
 const characterStore = useCharacterStore()
+const explorationStore = useExplorationStore()
+
+/**
+ * 统一处理返回逻辑
+ * 如果当前在探索中，则返回探索界面，否则返回主页
+ */
+function handleBack() {
+  if (explorationStore.currentMapId) {
+    router.push(`/exploration/${explorationStore.currentMapId}`)
+  } else {
+    router.push('/')
+  }
+}
 
 const GRID_SIZE = 60  // 每个格子60px
 const GRID_GAP = 2    // 格子间隙2px

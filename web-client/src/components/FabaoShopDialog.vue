@@ -17,10 +17,9 @@ const emit = defineEmits(['close'])
 const characterStore = useCharacterStore()
 const fabaoStore = useFabaoStore()
 
+const mode = ref('buy') // 'buy' or 'sell'
+
 // 获取当前商店的法宝列表
-// 这里我们假设所有法宝商人卖的都是 fabaoShopItems 中的东西
-// 实际逻辑中，可以在 props.npc 中配置特定的 shopId，然后去 filter fabaoShopItems
-// 但目前只有一个法宝商店配置，就直接用全部
 const shopItems = computed(() => {
   return fabaoShopItems.map(item => {
     const fabaoConfig = getFabaoById(item.fabaoId)
@@ -29,6 +28,11 @@ const shopItems = computed(() => {
       config: fabaoConfig
     }
   })
+})
+
+// 玩家可出售的法宝
+const internalSellableFabaos = computed(() => {
+  return fabaoStore.fabaos.filter(f => !f.isInDantian)
 })
 
 const playerSilver = computed(() => characterStore.character?.silver || 0)
@@ -55,6 +59,21 @@ const buyFabao = async (item) => {
   } catch (error) {
     console.error('购买法宝失败:', error)
     alert('购买失败，请重试')
+  }
+}
+
+// 出售法宝
+const sellFabaoAction = async (fabao) => {
+  const price = fabaoStore.calculateSellPrice(fabao)
+  if (!confirm(`确定要以 ${price} 灵石的价格出售 [${fabao.name}] 吗？`)) {
+    return
+  }
+
+  const result = await fabaoStore.sellFabao(fabao.id)
+  if (result.success) {
+    alert(`出售成功！获得 ${result.price} 灵石`)
+  } else {
+    alert(`出售失败：${result.reason}`)
   }
 }
 
@@ -89,15 +108,30 @@ const getGridStyle = (isActive, rarity) => {
     <div class="shop-dialog">
       <div class="shop-header">
         <span class="shop-icon">{{ npc.avatar }}</span>
-        <div>
+        <div class="header-info">
           <h3>{{ npc.name }}的法宝阁</h3>
           <p class="silver-display">💰 你的灵石：<span class="silver-amount">{{ playerSilver }}</span></p>
         </div>
+        
+        <div class="shop-tabs">
+          <button 
+            :class="['tab-btn', { active: mode === 'buy' }]" 
+            @click="mode = 'buy'">
+            🛍️ 购买
+          </button>
+          <button 
+            :class="['tab-btn', { active: mode === 'sell' }]" 
+            @click="mode = 'sell'">
+            💰 出售
+          </button>
+        </div>
+        
         <button class="btn-close-shop" @click="close">✕</button>
       </div>
 
       <div class="shop-content">
-        <div class="fabaos-list">
+        <!-- 购买模式 -->
+        <div v-if="mode === 'buy'" class="fabaos-list">
           <div 
             v-for="item in shopItems" 
             :key="item.fabaoId"
@@ -115,7 +149,6 @@ const getGridStyle = (isActive, rarity) => {
             </div>
 
             <div class="fabao-body">
-                <!-- 形状预览 -->
                 <div class="shape-preview">
                     <div 
                         v-for="(row, rIndex) in item.config.shape" 
@@ -130,7 +163,6 @@ const getGridStyle = (isActive, rarity) => {
                     </div>
                 </div>
 
-                <!-- 属性展示 -->
                 <div class="stats-info">
                     <div class="stat-row">
                         <span>生命: {{ item.config.baseStats.hp }}</span>
@@ -157,12 +189,75 @@ const getGridStyle = (isActive, rarity) => {
               </button>
             </div>
           </div>
-          
-          <p v-if="shopItems.length === 0" class="empty-message">
-            暂无法宝出售
+          <p v-if="shopItems.length === 0" class="empty-message">暂无法宝出售</p>
+        </div>
+
+        <!-- 出售模式 -->
+        <div v-else class="fabaos-list">
+          <div 
+            v-for="fabao in internalSellableFabaos" 
+            :key="fabao.id"
+            class="fabao-card sell-card"
+            :style="{ borderColor: getRarityColor(fabao.rarity) }">
+            
+            <div class="fabao-header">
+                <span class="fabao-icon">{{ fabao.icon }}</span>
+                <div class="fabao-title">
+                    <div class="name" :style="{ color: getRarityColor(fabao.rarity) }">
+                        {{ fabao.name }}
+                    </div>
+                    <div class="type-badge">
+                      {{ fabao.realm }} · {{ fabao.type }}
+                      <span v-if="fabao.enhance_level > 0" class="enhance-badge"> +{{ fabao.enhance_level }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="fabao-body">
+                <div class="shape-preview">
+                    <div 
+                        v-for="(row, rIndex) in (fabao.current_shape || fabao.shape)" 
+                        :key="rIndex" 
+                        class="shape-row">
+                        <div 
+                            v-for="(cell, cIndex) in row" 
+                            :key="cIndex" 
+                            class="shape-cell"
+                            :style="getGridStyle(cell === 1, fabao.rarity)"
+                        ></div>
+                    </div>
+                </div>
+
+                <div class="stats-info">
+                    <div class="stat-row">
+                        <span>生命: {{ fabao.max_hp }}</span>
+                        <span>攻击: {{ fabao.attack }}</span>
+                    </div>
+                    <div class="stat-row">
+                        <span>防御: {{ fabao.defense }}</span>
+                        <span>灵力: {{ fabao.max_mp }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="fabao-footer">
+              <div class="price">
+                <span>{{ fabaoStore.calculateSellPrice(fabao) }}</span>
+                <span class="price-icon">💰</span>
+              </div>
+              <button 
+                class="btn-sell" 
+                @click="sellFabaoAction(fabao)">
+                出售
+              </button>
+            </div>
+          </div>
+          <p v-if="internalSellableFabaos.length === 0" class="empty-message">
+            背包里没有可出售的法宝（丹田中的法宝无法出售）
           </p>
         </div>
       </div>
+
     </div>
   </div>
 </template>
@@ -210,13 +305,48 @@ const getGridStyle = (isActive, rarity) => {
 }
 
 .shop-header h3 {
-  margin: 0 0 0.3rem 0;
+  margin: 0;
   font-size: 1.5rem;
   color: #cbbde2;
 }
 
+.header-info {
+  flex: 1;
+}
+
+.shop-tabs {
+  display: flex;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 4px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  margin: 0 1.5rem;
+}
+
+.tab-btn {
+  padding: 0.6rem 1.2rem;
+  border: none;
+  background: transparent;
+  color: #a0aec0;
+  cursor: pointer;
+  border-radius: 6px;
+  font-weight: bold;
+  transition: all 0.2s;
+}
+
+.tab-btn.active {
+  background: #3182ce;
+  color: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.tab-btn:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.05);
+  color: #cbd5e0;
+}
+
 .silver-display {
-  margin: 0;
+  margin: 0.2rem 0 0 0;
   font-size: 0.9rem;
   color: #a0aec0;
 }
@@ -227,9 +357,6 @@ const getGridStyle = (isActive, rarity) => {
 }
 
 .btn-close-shop {
-  position: absolute;
-  top: 1rem;
-  right: 1rem;
   width: 32px;
   height: 32px;
   border-radius: 50%;
@@ -239,11 +366,44 @@ const getGridStyle = (isActive, rarity) => {
   font-size: 1.2rem;
   cursor: pointer;
   transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .btn-close-shop:hover {
   background: rgba(231, 76, 60, 0.3);
   border-color: #e74c3c;
+}
+
+/* 之前缺失的样式 */
+.btn-sell {
+  padding: 0.6rem 1.2rem;
+  background: linear-gradient(45deg, #27ae60, #2ecc71);
+  border: none;
+  border-radius: 6px;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-sell:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(46, 204, 113, 0.4);
+}
+
+.enhance-badge {
+  background: rgba(243, 156, 18, 0.2);
+  color: #f39c12;
+  padding: 1px 4px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  margin-left: 4px;
+}
+
+.sell-card {
+  border-style: dashed;
 }
 
 .shop-content {
@@ -269,6 +429,7 @@ const getGridStyle = (isActive, rarity) => {
   flex-direction: column;
   gap: 1rem;
 }
+
 
 .fabao-card:hover {
   background: rgba(255, 255, 255, 0.06);

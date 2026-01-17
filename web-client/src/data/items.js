@@ -348,6 +348,18 @@ export const items = [
         description: '使用后解锁护山大阵建造。',
         price: 1500,
         icon: '📜'
+    },
+    {
+        id: 'teleport_stone',
+        name: '传送石',
+        type: 'consumable',
+        effect: {
+            type: 'teleport',
+            value: 'town'
+        },
+        description: '刻有空间阵法的符石，使用后瞬间回到起始镇。',
+        price: 50,
+        icon: '🗿'
     }
 ]
 

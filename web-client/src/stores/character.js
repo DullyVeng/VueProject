@@ -152,6 +152,25 @@ export const useCharacterStore = defineStore('character', () => {
     }
 
     /**
+     * 更新当前位置（用于位置持久化）
+     */
+    async function updateCurrentLocation(mapId) {
+        if (!character.value) return
+
+        const { error } = await supabase
+            .from('characters')
+            .update({ current_map: mapId })
+            .eq('id', character.value.id)
+
+        if (!error) {
+            character.value.current_map = mapId
+            console.log(`[CharacterStore] 更新位置: ${mapId}`)
+        } else {
+            console.error('[CharacterStore] 更新位置失败:', error)
+        }
+    }
+
+    /**
      * 消耗宗门贡献
      */
     async function spendContribution(amount) {
@@ -473,6 +492,7 @@ export const useCharacterStore = defineStore('character', () => {
         canAdvanceRealm,
         getRealmInfo,
         spendContribution,
-        gainContribution
+        gainContribution,
+        updateCurrentLocation
     }
 })

@@ -6,10 +6,15 @@ import { useCharacterStore } from './character'
 import { useInventoryStore } from './inventory'
 import { getItemById } from '../data/items'
 
+// import { useFabaoStore } from './fabao' // Cancel dependency
+
 export const useShopStore = defineStore('shop', () => {
     const characterStore = useCharacterStore()
     const inventoryStore = useInventoryStore()
+    // const fabaoStore = useFabaoStore()
     const loading = ref(false)
+
+    // ... existing buyItem ...
 
     async function buyItem(item, quantity = 1) {
         if (!characterStore.character) return
@@ -61,7 +66,7 @@ export const useShopStore = defineStore('shop', () => {
 
         loading.value = true
 
-        // 1. Deduct Silver & Heal
+        // 1. Deduct Silver & Heal Character
         const newSilver = characterStore.character.silver - cost
         let updateData = { silver: newSilver }
 
@@ -83,13 +88,15 @@ export const useShopStore = defineStore('shop', () => {
         if (error) {
             console.error('Rest failed:', error)
             alert('住宿失败，请稍后再试。')
+            loading.value = false
+            return false // Return false on error
         } else {
             // Sync Local
             Object.assign(characterStore.character, updateData)
-            alert(type === 'basic' ? '休息了一晚，恢复了部分体力。' : '在上房睡得很香，体力完全恢复了！')
+            // No alert here, let main view handle it
+            loading.value = false
+            return true
         }
-
-        loading.value = false
     }
 
     return {

@@ -12,6 +12,7 @@ import {
     selectHiddenMonster,
     TERRAIN_TYPES
 } from '../data/explorationMaps'
+import { useGameStore } from './game'
 
 export const useExplorationStore = defineStore('exploration', () => {
     // 状态
@@ -25,6 +26,8 @@ export const useExplorationStore = defineStore('exploration', () => {
     const pendingEncounter = ref(null) // 待处理的遭遇（怪物信息）
     const showExitConfirm = ref(false) // 显示退出确认弹窗
     const isInCombat = ref(false) // 标记是否在探索中遭遇战斗（用于战斗后返回）
+
+    const gameStore = useGameStore()
 
     // 计算属性
     const visibleMonsters = computed(() => {
@@ -49,8 +52,20 @@ export const useExplorationStore = defineStore('exploration', () => {
 
     // 进入小地图
     // forceReset: true 表示强制重置到出生点（从大地图进入），false 表示尝试恢复位置（刷新）
-    const enterMap = (mapId, forceReset = false) => {
-        const map = getExplorationMap(mapId)
+    const enterMap = async (mapId, forceReset = false) => {
+        // 先尝试获取静态配置
+        let map = getExplorationMap(mapId)
+
+        // 如果是刷新页面（forceReset=false），尝试从 localStorage 加载地图数据
+        // 这样可以保证刷新后地图结构不变
+        if (!forceReset) {
+            const savedMapData = loadMapData(mapId)
+            if (savedMapData) {
+                map = savedMapData
+                console.log(`[Exploration] 已恢复地图 ${mapId} 的地形数据`)
+            }
+        }
+
         if (!map) {
             console.error(`探索地图 ${mapId} 不存在`)
             return false
@@ -58,6 +73,12 @@ export const useExplorationStore = defineStore('exploration', () => {
 
         currentMapId.value = mapId
         currentMap.value = map
+
+        // 如果是首次进入（forceReset=true），保存当前地图数据到 localStorage
+        // 这样后续刷新页面都能加载到同一份地图
+        if (forceReset) {
+            saveMapData(mapId, map)
+        }
 
         // 如果强制重置，清除状态并使用出生点
         if (forceReset) {
@@ -86,11 +107,21 @@ export const useExplorationStore = defineStore('exploration', () => {
         pendingEncounter.value = null
         showExitConfirm.value = false
 
+        // 更新角色当前位置到数据库
+        await gameStore.travelTo(mapId)
+
         return true
     }
 
     // 退出小地图
     const exitMap = () => {
+        // 清空当前地图的缓存数据，确保下次进入时重新生成
+        if (currentMapId.value) {
+            localStorage.removeItem(`exploration_map_data_${currentMapId.value}`)
+            localStorage.removeItem(`exploration_${currentMapId.value}`)
+            console.log(`[Exploration] 已清空地图 ${currentMapId.value} 的缓存数据`)
+        }
+
         currentMapId.value = null
         currentMap.value = null
         playerPosition.value = { x: 0, y: 0 }
@@ -216,6 +247,46 @@ export const useExplorationStore = defineStore('exploration', () => {
 
     // ==================== 位置持久化 ====================
 
+    // 保存地图数据
+    const saveMapData = (mapId, mapData) => {
+        try {
+            // 需要处理 Int8Array 序列化问题
+            const dataToSave = { ...mapData }
+
+            // 如果 terrain 是 TypedArray (如 Int8Array)，转换为普通数组
+            if (mapData.terrain && typeof mapData.terrain.length === 'number' && !Array.isArray(mapData.terrain)) {
+                dataToSave.terrain = Array.from(mapData.terrain)
+            }
+
+            localStorage.setItem(`exploration_map_data_${mapId}`, JSON.stringify(dataToSave))
+        } catch (e) {
+            console.error('保存地图数据失败:', e)
+        }
+    }
+
+    // 加载地图数据
+    const loadMapData = (mapId) => {
+        try {
+            const saved = localStorage.getItem(`exploration_map_data_${mapId}`)
+            if (!saved) return null
+
+            const parsed = JSON.parse(saved)
+
+            // 校验数据的有效性: terrain 必须是数组
+            // 如果是对象 {"0":...} 说明是损坏的旧数据，必须丢弃
+            if (parsed.terrain && typeof parsed.terrain === 'object' && !Array.isArray(parsed.terrain)) {
+                console.warn(`[Exploration] 地图 ${mapId} 数据损坏，重新生成`)
+                localStorage.removeItem(`exploration_map_data_${mapId}`)
+                return null
+            }
+
+            return parsed
+        } catch (e) {
+            console.error('加载地图数据失败:', e)
+            return null
+        }
+    }
+
     // 保存玩家状态到 localStorage
     const savePlayerState = () => {
         if (!currentMapId.value) return
@@ -261,6 +332,8 @@ export const useExplorationStore = defineStore('exploration', () => {
     const clearPlayerState = () => {
         if (currentMapId.value) {
             localStorage.removeItem(`exploration_${currentMapId.value}`)
+            // 注意：我们通常不清除 map_data，除非玩家显式离开副本或者通关
+            // 但如果这里是 forceReset (重新进入)，我们会覆盖 map_data
         }
     }
 

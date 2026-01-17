@@ -5,9 +5,9 @@
 
 ---
 
-- `stores/daily.js` - 每日任务store
-- `components/DailyTaskPanel.vue` - UI组件
-- 数据库表：`daily_task_progress`
+- 已完成：基础架构、日常任务、法宝系统基础
+- 进行中：核心玩法完善
+- 待开始：境界突破任务链
 
 ---
 
@@ -59,6 +59,12 @@
 ---
 
 ## 📋 已完成的迭代
+
+### ✅ 法宝获取系统（2026-01-17）
+- 商店购买（灵石）
+- 战斗掉落（概率获得）
+- 宗门贡献兑换（高阶法宝）
+- [归档位置](file:///e:/Project/JavaProject/ai-agent/archive/20260117-fabao-acquisition)
 
 ### ✅ 地图怪物扩展（2026-01-15）
 - 新增9个地图（30-90级）

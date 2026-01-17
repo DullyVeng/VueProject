@@ -72,13 +72,17 @@ export class DiggerMapGenerator {
                     exitPoints.push(forcedExit)
                 }
 
+                // 优化：拓宽出口附近的道路，防止单行道被堵
+                this._widenExitAreas(exitPoints)
+
                 // 标记出口
                 exitPoints.forEach(p => {
                     this.terrain[p.y * width + p.x] = TERRAIN_TYPES.EXIT
                 })
 
                 // 6. 装饰地图 (随机放置障碍物和草地)
-                this._decorateMap()
+                // 传入关键点以避免在这些位置放置障碍物
+                this._decorateMap(exitPoints, spawnPoint)
 
                 return {
                     width: this.width,
@@ -286,17 +290,69 @@ export class DiggerMapGenerator {
 
     _forceCreateExit() {
         // 如果自然生成的没有延伸到边缘，强制挖一条路到边缘
-        // 简单策略：从中心向左挖直到边缘
+        // 策略：从中心向左挖直到边缘，且保证宽度至少为3
         const cy = Math.floor(this.height / 2)
-        for (let x = Math.floor(this.width / 2); x >= 0; x--) {
-            this.terrain[cy * this.width + x] = TERRAIN_TYPES.GROUND
+        const exitY = cy
+
+        for (let x = Math.floor(this.width / 2); x >= 1; x--) {
+            // 挖掘宽度为3的通道
+            for (let dy = -1; dy <= 1; dy++) {
+                const ny = cy + dy
+                if (ny > 0 && ny < this.height - 1) {
+                    this.terrain[ny * this.width + x] = TERRAIN_TYPES.GROUND
+                }
+            }
         }
-        return { x: 0, y: cy }
+        return { x: 0, y: exitY }
     }
 
-    _decorateMap() {
+    _widenExitAreas(exitPoints) {
+        // 确保出口周围有足够的空间 (至少3格宽)
+        // 我们以出口为中心，清理一个半径为2的区域作为广场
+        for (const exit of exitPoints) {
+            const radius = 2
+            for (let dy = -radius; dy <= radius; dy++) {
+                for (let dx = -radius; dx <= radius; dx++) {
+                    const nx = exit.x + dx
+                    const ny = exit.y + dy
+
+                    if (nx > 0 && nx < this.width - 1 && ny > 0 && ny < this.height - 1) {
+                        const idx = ny * this.width + nx
+                        // 只需要将墙壁变成地面，不要覆盖其他类型
+                        if (this.terrain[idx] === TERRAIN_TYPES.WALL) {
+                            this.terrain[idx] = TERRAIN_TYPES.GROUND
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    _decorateMap(exitPoints = [], spawnPoint) {
+        if (!spawnPoint) spawnPoint = this._findSpawnPoint()
+
+        // 预计算安全区 (避免在关键路径上生成障碍物)
+        const isSafeZone = (x, y) => {
+            // 1. 出生点周围 (半径3)
+            const distSpawn = Math.sqrt(Math.pow(x - spawnPoint.x, 2) + Math.pow(y - spawnPoint.y, 2))
+            if (distSpawn < 3) return true;
+
+            // 2. 出口周围 (半径5 - 保证出口前是一大片空地)
+            for (const exit of exitPoints) {
+                const distExit = Math.sqrt(Math.pow(x - exit.x, 2) + Math.pow(y - exit.y, 2))
+                if (distExit < 5) return true;
+            }
+            return false;
+        }
+
         for (let i = 0; i < this.terrain.length; i++) {
             if (this.terrain[i] === TERRAIN_TYPES.GROUND) {
+                const x = i % this.width
+                const y = Math.floor(i / this.width)
+
+                // 如果是安全区，跳过装饰（不生成障碍物）
+                if (isSafeZone(x, y)) continue;
+
                 const rand = Math.random()
                 if (rand < 0.05) {
                     this.terrain[i] = TERRAIN_TYPES.OBSTACLE
@@ -306,9 +362,7 @@ export class DiggerMapGenerator {
             }
         }
 
-        // 清理出生点周围的障碍物
-        const spawn = this._findSpawnPoint() // 重新获取可能被覆盖的出生点
-        // 确保出生点是地面
-        this.terrain[spawn.y * this.width + spawn.x] = TERRAIN_TYPES.GROUND
+        // 再次确保出生点和出口本身是可通行的 (兜底)
+        this.terrain[spawnPoint.y * this.width + spawnPoint.x] = TERRAIN_TYPES.GROUND
     }
 }

@@ -4,12 +4,25 @@ import { useRouter } from 'vue-router'
 import { useCharacterStore } from '../stores/character'
 import { useShopStore } from '../stores/shop'
 
+import { useFabaoStore } from '../stores/fabao'
+
 const router = useRouter()
 const characterStore = useCharacterStore()
 const shopStore = useShopStore()
+const fabaoStore = useFabaoStore()
 
-const rest = (type) => {
-    shopStore.restAtInn(type)
+const rest = async (type) => {
+    // 1. Call Shop Store for Character Rest (Deducts silver, heals char)
+    const success = await shopStore.restAtInn(type)
+    
+    if (success) {
+        // 2. If successful, heal Fabaos
+        const percentage = type === 'basic' ? 0.5 : 1.0
+        await fabaoStore.restoreAllFabaos(percentage)
+        
+        // 3. Show success message (moved from store to here for better control)
+        alert(type === 'basic' ? '休息了一晚，恢复了部分体力与法宝灵力。' : '在上房睡得很香，体力与法宝灵力完全恢复了！')
+    }
 }
 
 const goHome = () => {

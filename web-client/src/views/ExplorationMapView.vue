@@ -7,12 +7,21 @@ import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useExplorationStore } from '../stores/exploration'
 import { useCombatStore } from '../stores/combat'
+import { useGameStore } from '../stores/game'
 import { TERRAIN_TYPES, TERRAIN_STYLES } from '../data/explorationMaps'
+import InventoryPanel from '../components/game/InventoryPanel.vue'
+import CharacterPanel from '../components/game/CharacterPanel.vue'
 
 const router = useRouter()
 const route = useRoute()
 const explorationStore = useExplorationStore()
 const combatStore = useCombatStore()
+const gameStore = useGameStore()
+
+// 面板显示状态
+const showInventory = ref(false)
+const showCharacter = ref(false)
+const showDantian = ref(false)
 
 // Canvas 引用
 const canvasRef = ref(null)
@@ -35,11 +44,15 @@ onMounted(async () => {
         return
     }
 
-    // 检查是否是从大地图首次进入（没有保存状态）还是刷新页面（有保存状态）
-    const savedState = localStorage.getItem(`exploration_${mapId}`)
-    const isFirstEntry = !savedState  // 没有保存状态表示首次进入
+    // 检查是否有保存的地图数据
+    // 如果有地图数据说明之前进入过，使用保存的地图和位置
+    // 如果没有地图数据说明是首次进入，生成新地图
+    const savedMapData = localStorage.getItem(`exploration_map_data_${mapId}`)
+    const isFirstEntry = !savedMapData  // 没有保存的地图数据表示首次进入
     
-    const success = explorationStore.enterMap(mapId, isFirstEntry)  // 首次进入时重置位置
+    console.log(`[ExplorationMapView] mapId=${mapId}, isFirstEntry=${isFirstEntry}`)
+    
+    const success = await explorationStore.enterMap(mapId, isFirstEntry)  // 首次进入时重置位置
     if (!success) {
         alert(`地图 ${mapId} 暂无探索区域`)
         router.push('/map')
@@ -322,8 +335,17 @@ const handleEncounter = (encounter) => {
 }
 
 // 确认退出
-const confirmExit = () => {
+const confirmExit = async () => {
+    // 获取父地图ID（大地图位置）
+    const parentMapId = explorationStore.currentMap?.parentMapId || 'town'
+    
+    // 更新角色位置到父地图
+    await gameStore.travelTo(parentMapId)
+    
+    // 清空探索地图状态（包括 localStorage 缓存）
     explorationStore.exitMap()
+    
+    // 返回到大地图界面
     router.push('/map')
 }
 
@@ -374,6 +396,34 @@ const handleBackClick = () => {
                 <span class="rate-value">{{ explorationStore.encounterRatePercent }}%</span>
             </div>
         </div>
+
+        <!-- UI控制按钮栏 -->
+        <div class="ui-controls">
+            <button class="ui-btn" @click="showCharacter = !showCharacter" title="角色">
+                <span class="icon">👤</span>
+                <span class="label">角色</span>
+            </button>
+            <button class="ui-btn" @click="showInventory = !showInventory" title="背包">
+                <span class="icon">🎒</span>
+                <span class="label">背包</span>
+            </button>
+            <button class="ui-btn" @click="router.push('/dantian')" title="法宝">
+                <span class="icon">✨</span>
+                <span class="label">法宝</span>
+            </button>
+        </div>
+
+        <!-- 角色面板 -->
+        <CharacterPanel 
+            :show="showCharacter" 
+            @close="showCharacter = false" 
+        />
+        
+        <!-- 背包面板 -->
+        <InventoryPanel 
+            :show="showInventory" 
+            @close="showInventory = false" 
+        />
 
         <!-- 退出确认弹窗 -->
         <div v-if="explorationStore.showExitConfirm" class="exit-modal" @click.self="cancelExit">
@@ -444,6 +494,49 @@ const handleBackClick = () => {
     border: 2px solid rgba(100, 255, 218, 0.3);
     border-radius: 8px;
     box-shadow: 0 0 30px rgba(100, 255, 218, 0.1);
+}
+
+/* UI控制按钮 */
+.ui-controls {
+    position: fixed;
+    right: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    z-index: 100;
+}
+
+.ui-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.75rem;
+    background: rgba(0, 0, 0, 0.7);
+    border: 2px solid rgba(100, 255, 218, 0.3);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s;
+    backdrop-filter: blur(10px);
+    min-width: 70px;
+}
+
+.ui-btn:hover {
+    background: rgba(100, 255, 218, 0.15);
+    border-color: rgba(100, 255, 218, 0.6);
+    transform: scale(1.05);
+}
+
+.ui-btn .icon {
+    font-size: 1.5rem;
+}
+
+.ui-btn .label {
+    font-size: 0.75rem;
+    color: #64ffda;
+    font-weight: 500;
 }
 
 .bottom-bar {

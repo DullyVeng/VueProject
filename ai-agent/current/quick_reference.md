@@ -15,6 +15,9 @@ web-client/
 │   │   ├── quests.js      # 任务配置（4个）
 │   │   ├── items.js       # 物品配置
 │   │   ├── fabaos.js      # 法宝配置（8个）
+│   │   ├── fabaoShop.js   # 法宝商店
+│   │   ├── fabaoDrops.js  # 法宝掉落
+│   │   ├── sectShop.js    # 宗门兑换
 │   │   └── mapPositions.js # 地图坐标
 │   ├── stores/            # Pinia状态管理
 │   │   ├── character.js   # 角色（HP/MP/经验/灵石/行动点）
@@ -31,6 +34,8 @@ web-client/
 │   └── components/        # 组件
 │       ├── NpcDialog.vue       # NPC对话
 │       ├── ShopDialog.vue      # 商店
+│       ├── FabaoShopDialog.vue # 法宝商店
+│       ├── SectShopDialog.vue  # 宗门兑换
 │       └── QuestListDialog.vue # 任务列表
 ```
 
@@ -53,6 +58,10 @@ await characterStore.gainSilver(50)
 
 // 经验（已实现）
 await characterStore.gainExp(50)
+
+// 宗门贡献
+await characterStore.gainContribution(100)
+await characterStore.spendContribution(500)
 ```
 
 ### Game Store

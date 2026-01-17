@@ -64,13 +64,66 @@ export const useInventoryStore = defineStore('inventory', () => {
                 .select()
                 .single()
 
-            if (!error && data) {
+            if (error) {
+                // 处理唯一键冲突（409 Conflict / 23505）
+                // 这通常发生在本地库存未同步，或者并发添加同一物品时
+                if (error.code === '23505' || error.status === 409) {
+                    console.log(`[Inventory] 检测到物品 ${itemId} 已存在(Conflict)，转为更新逻辑`)
+
+                    // 1. 获取已存在的物品数据
+                    const { data: existingItem, error: fetchError } = await supabase
+                        .from('inventory')
+                        .select('*')
+                        .eq('character_id', characterStore.character.id)
+                        .eq('item_id', itemId)
+                        .single()
+
+                    if (!fetchError && existingItem) {
+                        // 2. 更新数量
+                        const newQuantity = existingItem.quantity + count
+                        const { error: updateError } = await supabase
+                            .from('inventory')
+                            .update({ quantity: newQuantity })
+                            .eq('id', existingItem.id)
+
+                        if (!updateError) {
+                            // 3. 同步到本地状态
+                            const localItem = inventory.value.find(i => i.item_id === itemId)
+                            if (localItem) {
+                                localItem.quantity = newQuantity
+                            } else {
+                                // 如果本地完全没有（stale cache），从远程push
+                                inventory.value.push({
+                                    ...getItemById(itemId),
+                                    ...existingItem,
+                                    quantity: newQuantity
+                                })
+                            }
+                            console.log(`[Inventory] 物品 ${itemId} 冲突自动修复完成，新数量: ${newQuantity}`)
+                        } else {
+                            console.error('[Inventory] 冲突修复失败(Update):', updateError)
+                        }
+                    } else {
+                        console.error('[Inventory] 冲突修复失败(Fetch):', fetchError)
+                    }
+                } else {
+                    console.error('Failed to add item:', error)
+                }
+            } else if (data) {
                 inventory.value.push({
                     ...getItemById(itemId),
                     ...data
                 })
             }
         }
+
+        // 获取物品名称用于日志
+        const itemConfig = getItemById(itemId)
+        const itemName = itemConfig ? itemConfig.name : itemId
+        // 注意：addLog 是 combatStore 的功能，这里不能直接调用，需要外部处理日志，或者 inventoryStore 自己不发日志
+        // 但目前 inventoryStore 并没有发送 log，而是调用者发送的。
+        // 之前的问题在于 combat.js 中调用 addItem 后，自己拼接日志时用了 id。
+        // 这里不需要修改 addItem 的日志逻辑，因为 addItem 本身不发日志。
 
         // 更新每日采集任务进度
         const dailyStore = useDailyStore()
@@ -98,6 +151,40 @@ export const useInventoryStore = defineStore('inventory', () => {
                     .eq('id', char.id)
 
                 char.hp = newHp
+            } else if (inventoryItem.effect.type === 'restore_mp') {
+                const char = characterStore.character
+                if (char.mp >= char.max_mp) {
+                    alert('灵力值已满，无需使用。')
+                    return
+                }
+                const newMp = Math.min(char.max_mp, char.mp + inventoryItem.effect.value)
+
+                // Update Character DB
+                await supabase
+                    .from('characters')
+                    .update({ mp: newMp })
+                    .eq('id', char.id)
+
+                char.mp = newMp
+            } else if (inventoryItem.effect.type === 'teleport') {
+                const char = characterStore.character
+                const targetMap = inventoryItem.effect.value // 'town'
+
+                // Update Character Location in DB
+                await supabase
+                    .from('characters')
+                    .update({ current_map: targetMap })
+                    .eq('id', char.id)
+
+                char.current_map = targetMap
+
+                // Use router to navigate if needed? 
+                // Since this is just data update, the View should react if it watches characterStore, 
+                // but usually MapView reads current_map on mount.
+                // If we are in MapView, we should probably force reload or navigate.
+                // But we can't access router easily here without importing it.
+                // Let's assume the user will see the change or we can reload window.
+                window.location.href = '/' // Simple way to force refresh to Home/Map
             }
 
             // Decrease Quantity

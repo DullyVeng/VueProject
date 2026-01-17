@@ -12,6 +12,8 @@ import { getItemById } from '../data/items'
 import { getNpcsByLocation } from '../data/npcs'
 import NpcDialog from '../components/NpcDialog.vue'
 import ShopDialog from '../components/ShopDialog.vue'
+import FabaoShopDialog from '../components/FabaoShopDialog.vue'
+import SectShopDialog from '../components/SectShopDialog.vue'
 import QuestListDialog from '../components/QuestListDialog.vue'
 import BatchGatherDialog from '../components/BatchGatherDialog.vue'
 
@@ -29,6 +31,8 @@ const currentNpcs = computed(() => getNpcsByLocation(gameStore.currentLocationId
 const selectedNpc = ref(null)
 const showNpcDialog = ref(false)
 const showShop = ref(false)
+const showFabaoShop = ref(false)
+const showSectShop = ref(false)
 const showQuestList = ref(false)
 
 const openNpcDialog = (npc) => {
@@ -49,6 +53,28 @@ const openShop = (npc) => {
 
 const closeShop = () => {
     showShop.value = false
+    selectedNpc.value = null
+}
+
+const openFabaoShop = (npc) => {
+    showNpcDialog.value = false
+    selectedNpc.value = npc
+    showFabaoShop.value = true
+}
+
+const closeFabaoShop = () => {
+    showFabaoShop.value = false
+    selectedNpc.value = null
+}
+
+const openSectShop = (npc) => {
+    showNpcDialog.value = false
+    selectedNpc.value = npc
+    showSectShop.value = true
+}
+
+const closeSectShop = () => {
+    showSectShop.value = false
     selectedNpc.value = null
 }
 
@@ -568,6 +594,8 @@ const visibleMaps = computed(() => {
       :npc="selectedNpc"
       @close="closeNpcDialog"
       @openShop="openShop"
+      @openFabaoShop="openFabaoShop"
+      @openSectShop="openSectShop"
       @viewQuests="openQuestList"
     />
 
@@ -576,6 +604,20 @@ const visibleMaps = computed(() => {
       v-if="showShop && selectedNpc"
       :npc="selectedNpc"
       @close="closeShop"
+    />
+
+    <!-- 法宝商店界面 -->
+    <FabaoShopDialog 
+      v-if="showFabaoShop && selectedNpc"
+      :npc="selectedNpc"
+      @close="closeFabaoShop"
+    />
+
+    <!-- 宗门商店界面 -->
+    <SectShopDialog 
+      v-if="showSectShop && selectedNpc"
+      :npc="selectedNpc"
+      @close="closeSectShop"
     />
 
     <!-- 任务列表 -->

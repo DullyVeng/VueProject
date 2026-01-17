@@ -152,6 +152,49 @@ export const useCharacterStore = defineStore('character', () => {
     }
 
     /**
+     * 消耗宗门贡献
+     */
+    async function spendContribution(amount) {
+        if (!character.value) return false
+
+        const current = character.value.contribution || 0
+        if (current < amount) {
+            return false
+        }
+
+        const newContribution = current - amount
+
+        const { error } = await supabase
+            .from('characters')
+            .update({ contribution: newContribution })
+            .eq('id', character.value.id)
+
+        if (!error) {
+            character.value.contribution = newContribution
+            return true
+        }
+
+        return false
+    }
+
+    /**
+     * 获得宗门贡献
+     */
+    async function gainContribution(amount) {
+        if (!character.value) return
+
+        const current = character.value.contribution || 0
+        const newContribution = current + amount
+
+        await supabase
+            .from('characters')
+            .update({ contribution: newContribution })
+            .eq('id', character.value.id)
+
+        character.value.contribution = newContribution
+    }
+
+    /**
      * 获得经验
      * 新机制：
      * - 经验公式：50 * level（线性增长）
@@ -428,6 +471,8 @@ export const useCharacterStore = defineStore('character', () => {
         advanceRealmLevel,  // 境界层数突破
         advanceRealm,       // 境界突破
         canAdvanceRealm,
-        getRealmInfo
+        getRealmInfo,
+        spendContribution,
+        gainContribution
     }
 })

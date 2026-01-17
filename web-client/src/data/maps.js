@@ -59,7 +59,7 @@ export const maps = [
         type: 'wild',
         level: [1, 5],
         description: '充满了迷雾的森林，据说深处有危险的生物出没。适合初学者历练。',
-        connections: ['town', 'mountain', 'cave'],
+        connections: ['town', 'mountain', 'cave', 'valley'],
 
         features: ['combat', 'resource', 'event'],
         resources: [

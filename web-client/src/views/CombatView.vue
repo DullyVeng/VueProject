@@ -386,6 +386,18 @@ const turn = computed(() => combatStore.turn)
         <button @click="combatStore.returnToMap()" class="btn-action return-map">
           🗺️ 返回地图
         </button>
+        
+        <!-- 掉落法宝展示 -->
+        <div v-if="combatStore.settlementInfo?.dropFabaos?.length > 0" class="drop-rewards">
+          <h4>✨ 获得法宝:</h4>
+          <div class="drop-list">
+            <div v-for="fabao in combatStore.settlementInfo.dropFabaos" :key="fabao.id" class="drop-item">
+               <span class="drop-icon">{{ fabao.icon }}</span>
+               <span class="drop-name">{{ fabao.name }}</span>
+            </div>
+          </div>
+        </div>
+
         <div class="settlement-hint">
           查看上方战斗日志了解战斗详情
         </div>
@@ -1195,6 +1207,55 @@ const turn = computed(() => combatStore.turn)
   border-radius: 3px;
   vertical-align: middle;
   box-shadow: 0 1px 3px rgba(238, 90, 82, 0.4);
+}
+
+/* 掉落法宝展示样式 */
+.drop-rewards {
+  margin-top: 1rem;
+  background: rgba(155, 89, 182, 0.2);
+  padding: 0.8rem;
+  border-radius: 8px;
+  border: 1px solid rgba(155, 89, 182, 0.4);
+  animation: fadeIn 0.5s;
+}
+
+.drop-rewards h4 {
+  margin: 0 0 0.5rem 0;
+  color: #dbb3ff;
+  font-size: 0.9rem;
+}
+
+.drop-list {
+  display: flex;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.drop-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.5rem;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.drop-icon {
+  font-size: 1.5rem;
+}
+
+.drop-name {
+  font-size: 0.8rem;
+  color: #e0dbe9;
+  font-weight: bold;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 </style>

@@ -17,6 +17,8 @@ import {
     canUseSkill,
     calculateSkillEffect
 } from '../data/fabaoSkills'
+import { getDropPoolByLevel } from '../data/fabaoDrops'
+import { getFabaoById } from '../data/fabaos'
 
 export const useCombatStore = defineStore('combat', () => {
     const characterStore = useCharacterStore()
@@ -735,6 +737,33 @@ export const useCombatStore = defineStore('combat', () => {
                 addLog('怪物掉落了物品！', 'special')
             }
 
+            // --- 法宝掉落判定 ---
+            const dropFabaos = []
+            const dropPool = getDropPoolByLevel(enemy.value.level)
+
+            // 简单的随机算法：遍历掉落池，每个法宝独立判定
+            // 基础掉落率调整：普通怪较低，Boss较高
+            const dropRateMultiplier = enemy.value.isBoss ? 2.0 : 1.0
+
+            for (const drop of dropPool) {
+                // 最终掉落率 = 基础掉落率 * 倍率
+                const finalRate = drop.rate * dropRateMultiplier
+
+                if (Math.random() < finalRate) {
+                    // 掉落成功！
+                    const fabaoConfig = getFabaoById(drop.fabaoId)
+                    if (fabaoConfig) {
+                        try {
+                            await fabaoStore.addFabao(drop.fabaoId, fabaoConfig.realm, fabaoConfig.rarity)
+                            dropFabaos.push(fabaoConfig)
+                            addLog(`✨ 机缘已到！获得了法宝 [${fabaoConfig.name}]！`, 'special')
+                        } catch (e) {
+                            console.error('添加掉落法宝失败:', e)
+                        }
+                    }
+                }
+            }
+
             // 更新击杀任务进度（剧情任务）
             questStore.checkKillQuests()
 
@@ -800,7 +829,8 @@ export const useCombatStore = defineStore('combat', () => {
                 expReward,
                 silverReward,
                 levelUp: updateData.level ? true : false,
-                newLevel: updateData.level || characterStore.character.level
+                newLevel: updateData.level || characterStore.character.level,
+                dropFabaos // 添加掉落法宝列表到结算信息
             }
 
             addLog(`战斗胜利！获得 ${expReward} 经验、${silverReward} 灵石。`, 'special')

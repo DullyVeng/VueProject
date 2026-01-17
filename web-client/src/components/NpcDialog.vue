@@ -8,7 +8,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['close', 'openShop', 'viewQuests'])
+const emit = defineEmits(['close', 'openShop', 'openFabaoShop', 'openSectShop', 'viewQuests'])
 
 const currentDialogueId = ref('greeting')
 
@@ -21,6 +21,10 @@ const handleOption = (option) => {
     emit('close')
   } else if (option.action === 'open_shop') {
     emit('openShop', props.npc)
+  } else if (option.action === 'open_fabao_shop') {
+    emit('openFabaoShop', props.npc)
+  } else if (option.action === 'open_sect_shop') {
+    emit('openSectShop', props.npc)
   } else if (option.action === 'view_quests') {
     emit('viewQuests', props.npc)
   } else if (option.next) {

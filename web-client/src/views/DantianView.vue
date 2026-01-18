@@ -222,7 +222,7 @@
             </button>
             
             <!-- 温养信息 -->
-            <div v-if="fabao.nourish_level > 0" class="nourish-info">
+            <div v-if="fabao.nourish_level >= 0" class="nourish-info">
               <div class="nourish-header">
                 <span class="nourish-badge" :style="{ color: nourishLevelColor(fabao.nourish_level) }">
                   🌟 温养 Lv.{{ fabao.nourish_level }}

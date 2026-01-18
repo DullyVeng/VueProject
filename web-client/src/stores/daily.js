@@ -117,6 +117,18 @@ export const useDailyStore = defineStore('daily', () => {
      * @param {number} amount - 增加数量
      */
     async function updateProgress(taskType, target = 'any', amount = 1) {
+        console.log(`[Daily] updateProgress 调用:`, {
+            taskType,
+            target,
+            amount,
+            任务数量: todayTasks.value.length
+        })
+
+        if (todayTasks.value.length === 0) {
+            console.warn('[Daily] ❌ 今日任务列表为空，无法更新进度')
+            return
+        }
+
         let hasUpdate = false
 
         for (const task of todayTasks.value) {
@@ -141,14 +153,18 @@ export const useDailyStore = defineStore('daily', () => {
             }
 
             if (isMatch) {
+                const oldProgress = task.current
                 task.current = Math.min(task.current + amount, task.required)
                 hasUpdate = true
-                console.log(`[Daily] 任务进度: ${task.name} ${task.current}/${task.required}`)
+                console.log(`[Daily] ✅ 任务进度更新: ${task.name} ${oldProgress} → ${task.current}/${task.required}`)
             }
         }
 
         if (hasUpdate) {
             await saveTasks()
+            console.log('[Daily] 任务已保存到数据库')
+        } else {
+            console.log('[Daily] ⚠️ 没有匹配的任务需要更新')
         }
     }
 

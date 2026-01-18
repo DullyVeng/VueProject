@@ -13,6 +13,10 @@ import {
     TERRAIN_TYPES
 } from '../data/explorationMaps'
 import { useGameStore } from './game'
+import { useUserStore } from './user'
+import { useInventoryStore } from './inventory'
+import { generateChestLoot } from '../data/chests'
+import { supabase } from '../supabase/client'
 
 export const useExplorationStore = defineStore('exploration', () => {
     // 状态
@@ -27,7 +31,13 @@ export const useExplorationStore = defineStore('exploration', () => {
     const showExitConfirm = ref(false) // 显示退出确认弹窗
     const isInCombat = ref(false) // 标记是否在探索中遭遇战斗（用于战斗后返回）
 
+    // BOSS 和宝箱状态
+    const openedChests = ref([]) // 已开启的宝箱ID列表
+    const bossDefeated = ref(false) // 当前地图BOSS是否已击败
+
     const gameStore = useGameStore()
+    const userStore = useUserStore()
+    const inventoryStore = useInventoryStore()
 
     // 计算属性
     const visibleMonsters = computed(() => {
@@ -48,6 +58,33 @@ export const useExplorationStore = defineStore('exploration', () => {
 
     const encounterRatePercent = computed(() => {
         return Math.round(currentEncounterRate.value * 100)
+    })
+
+    // BOSS 方向指引（计算 BOSS 相对玩家的方位）
+    const bossDirection = computed(() => {
+        if (!currentMap.value?.boss || bossDefeated.value) return null
+
+        const boss = currentMap.value.boss
+        const dx = boss.x - playerPosition.value.x
+        const dy = boss.y - playerPosition.value.y
+
+        // 计算角度
+        const angle = Math.atan2(dy, dx) * 180 / Math.PI
+
+        return {
+            angle,
+            distance: Math.sqrt(dx * dx + dy * dy),
+            dx,
+            dy
+        }
+    })
+
+    // 可用宝箱（未开启）
+    const availableChests = computed(() => {
+        if (!currentMap.value?.chests) return []
+        return currentMap.value.chests.filter(
+            c => !openedChests.value.includes(c.id)
+        )
     })
 
     // 进入小地图
@@ -74,18 +111,15 @@ export const useExplorationStore = defineStore('exploration', () => {
         currentMapId.value = mapId
         currentMap.value = map
 
-        // 如果是首次进入（forceReset=true），保存当前地图数据到 localStorage
-        // 这样后续刷新页面都能加载到同一份地图
-        if (forceReset) {
-            saveMapData(mapId, map)
-        }
-
         // 如果强制重置，清除状态并使用出生点
         if (forceReset) {
+            saveMapData(mapId, map) // 如果是首次进入（forceReset=true），保存当前地图数据到 localStorage
+            // 这样后续刷新页面都能加载到同一份地图
             playerPosition.value = { ...map.spawnPoint }
             previousPosition.value = { ...map.spawnPoint }
             playerDirection.value = 'down'
             defeatedMonsters.value = []
+            openedChests.value = []
             clearPlayerState()  // 清除保存的状态
         } else {
             // 尝试从 localStorage 恢复位置（刷新场景）
@@ -95,17 +129,22 @@ export const useExplorationStore = defineStore('exploration', () => {
                 previousPosition.value = savedState.previousPosition
                 playerDirection.value = savedState.direction
                 defeatedMonsters.value = savedState.defeatedMonsters || []
+                openedChests.value = savedState.openedChests || []
             } else {
                 // 使用默认出生点
                 playerPosition.value = { ...map.spawnPoint }
                 previousPosition.value = { ...map.spawnPoint }
                 playerDirection.value = 'down'
                 defeatedMonsters.value = []
+                openedChests.value = []
             }
         }
 
         pendingEncounter.value = null
         showExitConfirm.value = false
+
+        // 检查 BOSS 是否需要刷新（24小时）
+        await checkBossRespawn(mapId)
 
         // 更新角色当前位置到数据库
         await gameStore.travelTo(mapId)
@@ -128,6 +167,8 @@ export const useExplorationStore = defineStore('exploration', () => {
         previousPosition.value = { x: 0, y: 0 }
         playerDirection.value = 'down'
         defeatedMonsters.value = []
+        openedChests.value = []
+        bossDefeated.value = false
         pendingEncounter.value = null
         showExitConfirm.value = false
         isInCombat.value = false
@@ -140,7 +181,7 @@ export const useExplorationStore = defineStore('exploration', () => {
     }
 
     // 移动玩家
-    const movePlayer = (direction) => {
+    const movePlayer = async (direction) => { // Added async here
         if (isMoving.value || !currentMap.value || showExitConfirm.value) {
             return { success: false }
         }
@@ -185,6 +226,34 @@ export const useExplorationStore = defineStore('exploration', () => {
             return { success: true, encounter: pendingEncounter.value }
         }
 
+        // 检查是否碰到 BOSS 或 BOSS 击败后的出口
+        const boss = checkBossCollision(newX, newY)
+        if (boss) {
+            isMoving.value = false
+
+            // 如果 BOSS 已击败，该位置变成出口
+            if (bossDefeated.value) {
+                showExitConfirm.value = true
+                return { success: true, isExit: true, isBossExit: true }
+            }
+
+            // BOSS 未击败，进入战斗
+            pendingEncounter.value = {
+                type: 'boss',
+                monster: boss
+            }
+            return { success: true, encounter: pendingEncounter.value }
+        }
+
+
+        // 检查是否碰到宝箱
+        const chest = checkChestCollision(newX, newY)
+        if (chest) {
+            isMoving.value = false
+            const lootResult = await openChest(chest)
+            return { success: true, chest: lootResult }
+        }
+
         // 检查隐性遭遇
         const hiddenEncounter = checkHiddenEncounter()
         if (hiddenEncounter) {
@@ -222,6 +291,8 @@ export const useExplorationStore = defineStore('exploration', () => {
     const defeatMonster = (monsterId) => {
         if (!defeatedMonsters.value.includes(monsterId)) {
             defeatedMonsters.value.push(monsterId)
+            console.log(`[Exploration] 怪物 ${monsterId} 已标记为击败，当前已击败: ${defeatedMonsters.value.length}个`)
+            savePlayerState()  // 保存状态
         }
     }
 
@@ -229,6 +300,137 @@ export const useExplorationStore = defineStore('exploration', () => {
     const clearPendingEncounter = () => {
         pendingEncounter.value = null
     }
+
+    // ====================  BOSS 和宝箱相关 ====================
+
+    // 检查 BOSS 碰撞（包括击败后的出口位置）
+    const checkBossCollision = (x, y) => {
+        if (!currentMap.value?.boss) return null
+        const boss = currentMap.value.boss
+        return (boss.x === x && boss.y === y) ? boss : null
+    }
+
+
+    // 检查宝箱碰撞
+    const checkChestCollision = (x, y) => {
+        return availableChests.value.find(c => c.x === x && c.y === y) || null
+    }
+
+    // 开启宝箱
+    const openChest = async (chest) => {
+        if (openedChests.value.includes(chest.id)) return null
+
+        // 生成奖励
+        let loot = generateChestLoot(chest.type)
+
+        // 确保宝箱不为空（保底奖励）
+        if (!loot || loot.length === 0) {
+            console.warn(`[Exploration] 宝箱 ${chest.id} (${chest.type}) 生成的奖励为空，使用保底奖励`)
+            loot = [{ id: 'spiritStone', amount: 5 }]
+        }
+
+        // 将物品添加到背包
+        for (const item of loot) {
+            if (item.type === 'sealed_fabao') {
+                // TODO: 处理法宝掉落（目前只支持普通物品）
+                console.log('获得封印法宝，暂未实现自动入库:', item)
+            } else {
+                await inventoryStore.addItem(item.id, item.amount)
+            }
+        }
+
+        // 标记为已开启
+        openedChests.value.push(chest.id)
+
+        // 保存状态
+        savePlayerState()
+
+        return { chest, loot }
+    }
+
+    // 检查 BOSS 是否需要刷新
+    const checkBossRespawn = async (mapId) => {
+        if (!userStore.user) {
+            console.log('[Exploration] checkBossRespawn: 用户未登录')
+            return
+        }
+
+        console.log(`[Exploration] 检查地图 ${mapId} 的BOSS刷新状态...`)
+
+        try {
+            const { data, error } = await supabase
+                .from('boss_defeats')
+                .select('defeated_at')
+                .eq('user_id', userStore.user.id)
+                .eq('map_id', mapId)
+                .single()
+
+            if (error && error.code !== 'PGRST116') {  // PGRST116 = 未找到
+                console.error('[Exploration] BOSS刷新检查失败:', error)
+                return
+            }
+
+            if (!data) {
+                // 从未击败过
+                console.log(`[Exploration] 地图 ${mapId} 的BOSS从未被击败`)
+                bossDefeated.value = false
+                return
+            }
+
+            // 检查是否已过 24 小时
+            const defeatedAt = new Date(data.defeated_at)
+            const now = new Date()
+            const minutes = (now - defeatedAt) / (1000 * 60)
+
+
+
+            const isDefeated = minutes < 1  // 1分钟（测试用）
+
+            bossDefeated.value = isDefeated
+
+            console.log(`[Exploration] 地图 ${mapId} BOSS状态:`, {
+                击败时间: data.defeated_at,
+                已过分钟: minutes.toFixed(2),  // 显示分钟
+                是否击败: isDefeated
+            })
+        } catch (e) {
+            console.error('[Exploration] BOSS刷新检查错误:', e)
+        }
+    }
+
+
+    // 保存 BOSS 击败时间
+    const saveBossDefeatTime = async (mapId) => {
+        if (!userStore.user) {
+            console.log('[Exploration] saveBossDefeatTime: 用户未登录')
+            return
+        }
+
+        console.log(`[Exploration] 保存BOSS击败时间到地图: ${mapId}`)
+
+        try {
+            const { error } = await supabase
+                .from('boss_defeats')
+                .upsert({
+                    user_id: userStore.user.id,
+                    map_id: mapId,
+                    defeated_at: new Date().toISOString()
+                }, {
+                    onConflict: 'user_id,map_id'
+                })
+
+            if (error) {
+                console.error('[Exploration] 保存BOSS击败时间失败:', error)
+            } else {
+                bossDefeated.value = true
+                console.log(`[Exploration] ✅ BOSS击败时间已保存，bossDefeated设置为: true`)
+                savePlayerState()
+            }
+        } catch (e) {
+            console.error('[Exploration] 保存BOSS击败时间错误:', e)
+        }
+    }
+
 
     // 获取地形类型
     const getTerrainAt = (x, y) => {
@@ -296,6 +498,7 @@ export const useExplorationStore = defineStore('exploration', () => {
             previousPosition: previousPosition.value,
             direction: playerDirection.value,
             defeatedMonsters: defeatedMonsters.value,
+            openedChests: openedChests.value,
             timestamp: Date.now()
         }
 
@@ -364,6 +567,17 @@ export const useExplorationStore = defineStore('exploration', () => {
         clearPendingEncounter,
         getTerrainAt,
         savePlayerState,
-        clearPlayerState
+        clearPlayerState,
+
+        // BOSS 和宝箱
+        openedChests,
+        bossDefeated,
+        bossDirection,
+        availableChests,
+        checkBossCollision,
+        checkChestCollision,
+        openChest,
+        saveBossDefeatTime,
+        checkBossRespawn
     }
 })

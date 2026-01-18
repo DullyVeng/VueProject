@@ -8,20 +8,43 @@ import { useRouter, useRoute } from 'vue-router'
 import { useExplorationStore } from '../stores/exploration'
 import { useCombatStore } from '../stores/combat'
 import { useGameStore } from '../stores/game'
+import { useInventoryStore } from '../stores/inventory'
 import { TERRAIN_TYPES, TERRAIN_STYLES } from '../data/explorationMaps'
 import InventoryPanel from '../components/game/InventoryPanel.vue'
 import CharacterPanel from '../components/game/CharacterPanel.vue'
+import TaskSidebar from '../components/TaskSidebar.vue'
+import { getItemById } from '../data/items'
 
 const router = useRouter()
 const route = useRoute()
 const explorationStore = useExplorationStore()
 const combatStore = useCombatStore()
 const gameStore = useGameStore()
+const inventoryStore = useInventoryStore()
 
 // 面板显示状态
 const showInventory = ref(false)
 const showCharacter = ref(false)
 const showDantian = ref(false)
+const showTasks = ref(false)  // 任务侧边栏
+
+// 切换背包面板时加载数据
+const toggleInventory = async () => {
+    showInventory.value = !showInventory.value
+    // 打开背包时加载最新数据
+    if (showInventory.value) {
+        await inventoryStore.fetchInventory()
+    }
+}
+
+// 奖励弹窗状态
+const showRewardModal = ref(false)
+const rewardList = ref([])
+
+const closeRewardModal = () => {
+    showRewardModal.value = false
+    rewardList.value = []
+}
 
 // Canvas 引用
 const canvasRef = ref(null)
@@ -195,16 +218,38 @@ const drawMap = () => {
         }
     }
 
-    // 绘制显性怪物
+    // 绘制宝箱（在怪物之前，避免遮挡）
+    explorationStore.availableChests.forEach(chest => {
+        drawChest(ctx, chest)
+    })
+    
+    // 绘制显性怪物（精英怪）
     explorationStore.visibleMonsters.forEach(monster => {
         drawMonster(ctx, monster)
     })
+    
+    // 绘制 BOSS 或 BOSS 击败后的出口
+    if (explorationStore.currentMap?.boss) {
+        if (!explorationStore.bossDefeated) {
+            // BOSS 未击败，绘制 BOSS
+            drawBoss(ctx, explorationStore.currentMap.boss)
+        } else {
+            // BOSS 已击败，在 BOSS 位置绘制出口
+            drawBossExit(ctx, explorationStore.currentMap.boss)
+        }
+    }
+
 
     // 绘制玩家
     drawPlayer(ctx)
 
     // 恢复状态
     ctx.restore()
+    
+    // 绘制 BOSS 方向指引（在 restore 之后，使用屏幕坐标）
+    if (explorationStore.bossDirection) {
+        drawBossDirection(ctx)
+    }
 }
 
 // 绘制玩家
@@ -239,13 +284,14 @@ const drawPlayer = (ctx) => {
     ctx.fill()
 }
 
-// 绘制怪物
+// 绘制怪物（精英怪）
 const drawMonster = (ctx, monster) => {
     const x = monster.x * TILE_SIZE + TILE_SIZE / 2
     const y = monster.y * TILE_SIZE + TILE_SIZE / 2
 
-    // 怪物身体（红色方形）
-    ctx.fillStyle = '#e74c3c'
+    // 怪物身体（精英怪用金色边框）
+    const isElite = monster.isElite || false
+    ctx.fillStyle = isElite ? '#f39c12' : '#e74c3c'
     ctx.fillRect(
         x - MONSTER_SIZE / 2,
         y - MONSTER_SIZE / 2,
@@ -254,14 +300,23 @@ const drawMonster = (ctx, monster) => {
     )
 
     // 怪物边框
-    ctx.strokeStyle = '#c0392b'
-    ctx.lineWidth = 2
+    ctx.strokeStyle = isElite ? '#f1c40f' : '#c0392b'
+    ctx.lineWidth = isElite ? 3 : 2
     ctx.strokeRect(
         x - MONSTER_SIZE / 2,
         y - MONSTER_SIZE / 2,
         MONSTER_SIZE,
         MONSTER_SIZE
     )
+    
+    // 精英怪皇冠标识
+    if (isElite) {
+        ctx.fillStyle = '#f1c40f'
+        ctx.font = 'bold 14px Arial'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'bottom'
+        ctx.fillText('👑', x, y - MONSTER_SIZE / 2 - 2)
+    }
 
     // 等级标识
     ctx.fillStyle = '#ffffff'
@@ -271,8 +326,192 @@ const drawMonster = (ctx, monster) => {
     ctx.fillText(`${monster.level}`, x, y)
 }
 
+// 绘制 BOSS
+const drawBoss = (ctx, boss) => {
+    const x = boss.x * TILE_SIZE + TILE_SIZE / 2
+    const y = boss.y * TILE_SIZE + TILE_SIZE / 2
+    const BOSS_SIZE = 40  // BOSS 更大
+    
+    // BOSS 光环效果（脉动）
+    const pulseSize = BOSS_SIZE + 8 + Math.sin(Date.now() / 200) * 4
+    ctx.fillStyle = 'rgba(192, 57, 43, 0.3)'
+    ctx.beginPath()
+    ctx.arc(x, y, pulseSize / 2, 0, Math.PI * 2)
+    ctx.fill()
+    
+    // BOSS 身体
+    ctx.fillStyle = '#c0392b'
+    ctx.fillRect(
+        x - BOSS_SIZE / 2,
+        y - BOSS_SIZE / 2,
+        BOSS_SIZE,
+        BOSS_SIZE
+    )
+    
+    // BOSS 边框（金色）
+    ctx.strokeStyle = '#f39c12'
+    ctx.lineWidth = 4
+    ctx.strokeRect(
+        x - BOSS_SIZE / 2,
+        y - BOSS_SIZE / 2,
+        BOSS_SIZE,
+        BOSS_SIZE
+    )
+    
+    // BOSS 皇冠
+    ctx.font = 'bold 20px Arial'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'bottom'
+    ctx.fillStyle = '#f1c40f'
+    ctx.fillText('👑', x, y - BOSS_SIZE / 2 - 4)
+    
+    // BOSS 等级
+    ctx.fillStyle = '#ffffff'
+    ctx.font = 'bold 14px Arial'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(`${boss.level}`, x, y)
+    
+    // BOSS 标签
+    ctx.font = 'bold 10px Arial'
+    ctx.fillStyle = '#f39c12'
+    ctx.fillText('BOSS', x, y + BOSS_SIZE / 2 + 12)
+}
+
+// 绘制 BOSS 击败后的出口
+const drawBossExit = (ctx, bossPosition) => {
+    const x = bossPosition.x * TILE_SIZE + TILE_SIZE / 2
+    const y = bossPosition.y * TILE_SIZE + TILE_SIZE / 2
+    const EXIT_SIZE = 40
+    
+    // 胜利光环效果（脉动金光）
+    const pulseSize = EXIT_SIZE + 10 + Math.sin(Date.now() / 150) * 6
+    ctx.fillStyle = 'rgba(241, 196, 15, 0.3)'
+    ctx.beginPath()
+    ctx.arc(x, y, pulseSize / 2, 0, Math.PI * 2)
+    ctx.fill()
+    
+    // 外层金色光环
+    ctx.strokeStyle = '#f1c40f'
+    ctx.lineWidth = 3
+    ctx.beginPath()
+    ctx.arc(x, y, EXIT_SIZE / 2, 0, Math.PI * 2)
+    ctx.stroke()
+    
+    // 内部填充
+    ctx.fillStyle = 'rgba(255, 215, 0, 0.2)'
+    ctx.beginPath()
+    ctx.arc(x, y, EXIT_SIZE / 2, 0, Math.PI * 2)
+    ctx.fill()
+    
+    // 胜利图标（皇冠 + 出口箭头）
+    ctx.font = 'bold 24px Arial'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = '#f1c40f'
+    ctx.fillText('👑', x, y - 8)
+    
+    // 出口箭头
+    ctx.font = 'bold 18px Arial'
+    ctx.fillStyle = '#ffc864'
+    ctx.fillText('↩', x, y + 10)
+    
+    // 提示文字
+    ctx.font = 'bold 9px Arial'
+    ctx.fillStyle = '#f39c12'
+    ctx.fillText('EXIT', x, y + EXIT_SIZE / 2 + 12)
+}
+
+
+// 绘制宝箱
+const drawChest = (ctx, chest) => {
+    const x = chest.x * TILE_SIZE + TILE_SIZE / 2
+    const y = chest.y * TILE_SIZE + TILE_SIZE / 2
+    const CHEST_SIZE = 28
+    
+    // 宝箱颜色（根据类型）
+    let chestColor = '#8b4513'  // 木箱
+    if (chest.type === 'iron') chestColor = '#7f8c8d'
+    if (chest.type === 'golden') chestColor = '#f39c12'
+    
+    // 宝箱主体
+    ctx.fillStyle = chestColor
+    ctx.fillRect(
+        x - CHEST_SIZE / 2,
+        y - CHEST_SIZE / 2,
+        CHEST_SIZE,
+        CHEST_SIZE
+    )
+    
+    // 宝箱边框
+    ctx.strokeStyle = chest.type === 'golden' ? '#f1c40f' : 'rgba(255, 255, 255, 0.5)'
+    ctx.lineWidth = 2
+    ctx.strokeRect(
+        x - CHEST_SIZE / 2,
+        y - CHEST_SIZE / 2,
+        CHEST_SIZE,
+        CHEST_SIZE
+    )
+    
+    // 宝箱图标
+    ctx.font = '18px Arial'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(chest.typeData?.icon || '📦', x, y)
+}
+
+// 绘制 BOSS 方向指引
+const drawBossDirection = (ctx) => {
+    const canvas = canvasRef.value
+    if (!canvas) return
+    
+    const bossDir = explorationStore.bossDirection
+    if (!bossDir || bossDir.distance < 10) return  // 太近不显示
+    
+    // 计算箭头位置（在屏幕边缘）
+    const centerX = canvas.width / 2
+    const centerY = canvas.height / 2
+    const angle = bossDir.angle
+    
+    // 转换为弧度
+    const radian = angle * Math.PI / 180
+    const arrowDistance = 200  // 箭头距离中心的距离
+    
+    const arrowX = centerX + Math.cos(radian) * arrowDistance
+    const arrowY = centerY + Math.sin(radian) * arrowDistance
+    
+    // 绘制箭头
+    ctx.save()
+    ctx.translate(arrowX, arrowY)
+    ctx.rotate(radian)
+    
+    // 箭头形状
+    ctx.fillStyle = 'rgba(243, 156, 18, 0.8)'
+    ctx.beginPath()
+    ctx.moveTo(15, 0)
+    ctx.lineTo(-10, -10)
+    ctx.lineTo(-10, 10)
+    ctx.closePath()
+    ctx.fill()
+    
+    // 箭头边框
+    ctx.strokeStyle = '#f39c12'
+    ctx.lineWidth = 2
+    ctx.stroke()
+    
+    ctx.restore()
+    
+    // 距离文字
+    ctx.font = 'bold 12px Arial'
+    ctx.fillStyle = '#f39c12'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    const distanceText = `BOSS ${Math.floor(bossDir.distance)}格`
+    ctx.fillText(distanceText, arrowX, arrowY + 20)
+}
+
 // 键盘控制
-const handleKeyDown = (e) => {
+const handleKeyDown = async (e) => {
     // 如果显示退出确认弹窗，只处理确认/取消
     if (explorationStore.showExitConfirm) {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -298,11 +537,25 @@ const handleKeyDown = (e) => {
     const direction = keyMap[e.key]
     if (direction) {
         e.preventDefault()
-        const result = explorationStore.movePlayer(direction)
+        const result = await explorationStore.movePlayer(direction)
 
         // 处理遭遇
         if (result.encounter) {
             handleEncounter(result.encounter)
+        } else if (result.chest) {
+            // 宝箱开启成功，显示奖励弹窗
+            if (result.chest.loot && result.chest.loot.length > 0) {
+                rewardList.value = result.chest.loot.map(item => {
+                    const itemDef = getItemById(item.id)
+                    return {
+                        ...item,
+                        name: itemDef ? itemDef.name : '未知物品',
+                        icon: itemDef ? itemDef.icon : '📦',
+                        desc: itemDef ? itemDef.description : ''
+                    }
+                })
+                showRewardModal.value = true
+            }
         }
     }
 
@@ -315,19 +568,24 @@ const handleKeyDown = (e) => {
 
 // 处理遭遇
 const handleEncounter = (encounter) => {
+    // 检查是否是 BOSS
+    const isBoss = encounter.type === 'boss'
+    
+    console.log('[遭遇怪物]', encounter.type, encounter.monster)
+    
     // 显示遭遇信息，然后进入战斗
-    setTimeout(() => {
-        const monsterLevel = encounter.monster.level || 1
-        
-        // combat.js 的 startCombat 需要 levelRange 数组参数
-        // 将单个等级转换为等级范围 [level, level]
-        const levelRange = [monsterLevel, monsterLevel]
-
+    setTimeout(async () => {
         // 标记进入战斗（用于战斗后返回探索地图）
         explorationStore.isInCombat = true
 
-        // 启动战斗
-        combatStore.startCombat(levelRange)
+        // 启动战斗，直接传递怪物对象
+        combatStore.startCombat(encounter.monster)
+        
+        // 如果是 BOSS，战斗胜利后保存击败时间
+        if (isBoss) {
+            // 注意：实际击败逻辑需要在战斗结束后处理
+            // 这里仅标记，具体实现需要在 combat store 中集成
+        }
 
         // 跳转到战斗页面
         router.push('/combat')
@@ -376,7 +634,11 @@ const handleBackClick = () => {
                 <div class="encounter-content">
                     <div class="encounter-icon">⚔️</div>
                     <div class="encounter-text">
-                        {{ explorationStore.pendingEncounter.type === 'visible' ? '遭遇怪物！' : '随机遭遇！' }}
+                        {{ 
+                            explorationStore.pendingEncounter.type === 'boss' ? '遭遇BOSS！' :
+                            explorationStore.pendingEncounter.type === 'visible' ? '遭遇精英怪！' : 
+                            '随机遭遇！' 
+                        }}
                     </div>
                     <div class="encounter-monster">
                         Lv.{{ explorationStore.pendingEncounter.monster.level }}
@@ -403,13 +665,21 @@ const handleBackClick = () => {
                 <span class="icon">👤</span>
                 <span class="label">角色</span>
             </button>
-            <button class="ui-btn" @click="showInventory = !showInventory" title="背包">
+            <button class="ui-btn" @click="toggleInventory" title="背包">
                 <span class="icon">🎒</span>
                 <span class="label">背包</span>
             </button>
-            <button class="ui-btn" @click="router.push('/dantian')" title="法宝">
+            <button class="ui-btn" @click="router.push('/dantian')" title="法宝管理">
                 <span class="icon">✨</span>
                 <span class="label">法宝</span>
+            </button>
+            <button class="ui-btn" @click="showTasks = !showTasks" title="任务中心">
+                <span class="icon">📋</span>
+                <span class="label">任务</span>
+            </button>
+            <button class="ui-btn btn-exit" @click="handleBackClick" title="退出地图">
+                <span class="icon">🚪</span>
+                <span class="label">退出</span>
             </button>
         </div>
 
@@ -425,6 +695,12 @@ const handleBackClick = () => {
             @close="showInventory = false" 
         />
 
+        <!-- 任务侧边栏 -->
+        <TaskSidebar 
+            :show="showTasks" 
+            @close="showTasks = false" 
+        />
+
         <!-- 退出确认弹窗 -->
         <div v-if="explorationStore.showExitConfirm" class="exit-modal" @click.self="cancelExit">
             <div class="exit-content">
@@ -434,6 +710,25 @@ const handleBackClick = () => {
                     <button class="btn-confirm" @click="confirmExit">确定</button>
                     <button class="btn-cancel" @click="cancelExit">取消</button>
                 </div>
+            </div>
+        </div>
+
+        <!-- 奖励结算弹窗 -->
+        <div v-if="showRewardModal" class="reward-modal" @click.self="closeRewardModal">
+            <div class="reward-content">
+                <div class="reward-header">
+                    <h2>✨ 获得奖励 ✨</h2>
+                </div>
+                <div class="reward-list">
+                    <div v-for="(item, index) in rewardList" :key="index" class="reward-item">
+                        <div class="item-icon">{{ item.icon }}</div>
+                        <div class="item-info">
+                            <span class="item-name">{{ item.name }}</span>
+                            <span class="item-amount">x{{ item.amount }}</span>
+                        </div>
+                    </div>
+                </div>
+                <button class="btn-claim" @click="closeRewardModal">收入囊中</button>
             </div>
         </div>
     </div>
@@ -499,11 +794,10 @@ const handleBackClick = () => {
 /* UI控制按钮 */
 .ui-controls {
     position: fixed;
-    right: 1rem;
-    top: 50%;
-    transform: translateY(-50%);
+    left: 1rem;
+    bottom: 6rem; /* 提高位置，避免遮挡底部指引 */
     display: flex;
-    flex-direction: column;
+    flex-direction: row;  /* 横向排列 */
     gap: 0.5rem;
     z-index: 100;
 }
@@ -537,6 +831,142 @@ const handleBackClick = () => {
     font-size: 0.75rem;
     color: #64ffda;
     font-weight: 500;
+}
+
+/* 退出按钮特殊样式 */
+.ui-btn.btn-exit {
+    border-color: rgba(231, 76, 60, 0.5);
+}
+
+/* 奖励弹窗样式 */
+.reward-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+    backdrop-filter: blur(5px);
+    animation: fadeIn 0.3s ease;
+}
+
+.reward-content {
+    background: linear-gradient(135deg, #1a1f25 0%, #15191f 100%);
+    border: 1px solid rgba(241, 196, 15, 0.3);
+    border-radius: 16px;
+    padding: 2rem;
+    width: 90%;
+    max-width: 400px;
+    box-shadow: 0 0 50px rgba(241, 196, 15, 0.15);
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    animation: slideUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.reward-header h2 {
+    color: #f1c40f;
+    text-align: center;
+    margin: 0;
+    font-size: 1.5rem;
+    text-shadow: 0 0 10px rgba(241, 196, 15, 0.5);
+}
+
+.reward-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+    max-height: 300px;
+    overflow-y: auto;
+    padding-right: 0.5rem;
+}
+
+.reward-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 0.8rem;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: transform 0.2s;
+}
+
+.reward-item:hover {
+    transform: translateX(5px);
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(241, 196, 15, 0.3);
+}
+
+.item-icon {
+    font-size: 2rem;
+    background: rgba(0, 0, 0, 0.3);
+    width: 48px;
+    height: 48px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 8px;
+}
+
+.item-info {
+    flex: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.item-name {
+    color: #e0e0e0;
+    font-weight: 500;
+}
+
+.item-amount {
+    color: #64ffda;
+    font-weight: bold;
+    font-size: 1.1rem;
+}
+
+.btn-claim {
+    background: linear-gradient(135deg, #f1c40f 0%, #f39c12 100%);
+    color: #1a1f25;
+    border: none;
+    padding: 1rem;
+    border-radius: 8px;
+    font-weight: bold;
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    box-shadow: 0 4px 15px rgba(243, 156, 18, 0.3);
+}
+
+.btn-claim:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(243, 156, 18, 0.4);
+    filter: brightness(1.1);
+}
+
+.btn-claim:active {
+    transform: translateY(0);
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.ui-btn.btn-exit:hover {
+    background: rgba(231, 76, 60, 0.15);
+    border-color: rgba(231, 76, 60, 0.8);
 }
 
 .bottom-bar {

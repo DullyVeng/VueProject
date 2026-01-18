@@ -34,7 +34,10 @@ onMounted(async () => {
 watchEffect(() => {
   if (combatStore.logs.length && logsContainer.value) {
     setTimeout(() => {
-      logsContainer.value.scrollTop = logsContainer.value.scrollHeight
+      // 再次检查元素是否存在（防止在异步执行时元素已被移除）
+      if (logsContainer.value) {
+        logsContainer.value.scrollTop = logsContainer.value.scrollHeight
+      }
     }, 100)
   }
 })
@@ -76,6 +79,20 @@ async function handleSummon(fabao) {
     alert(`召唤失败：${result.reason}`)
   }
 }
+
+// 一键召唤所有可召唤的法宝
+async function handleAutoSummon() {
+  const result = await combatStore.autoSummonAll()
+  
+  if (result.success) {
+    // 成功召唤，直接确认完成并进入准备阶段
+    combatStore.playerConfirmSummon()
+  } else {
+    // 召唤失败，显示原因
+    alert(result.reason || '召唤失败')
+  }
+}
+
 
 // 格式化日志消息
 function formatLog(log) {
@@ -346,12 +363,22 @@ const turn = computed(() => combatStore.turn)
           </div>
         </div>
         
-        <button 
-          @click="combatStore.playerConfirmSummon()" 
-          class="btn-confirm-summon"
-        >
-          ✓ 确认召唤完成
-        </button>
+        <div class="summon-actions">
+          <button 
+            @click="handleAutoSummon" 
+            class="btn-auto-summon"
+            :disabled="fabaoStore.dantianFabaos.filter(f => !f.isDamaged && !f.isSummoned).length === 0"
+            title="根据行动点自动召唤所有可召唤的法宝"
+          >
+            ⚡ 一键召唤
+          </button>
+          <button 
+            @click="combatStore.playerConfirmSummon()" 
+            class="btn-confirm-summon"
+          >
+            ✓ 确认召唤完成
+          </button>
+        </div>
       </div>
     </div>
 
@@ -1059,6 +1086,44 @@ const turn = computed(() => combatStore.turn)
   transform: translateY(-2px);
   box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
 }
+
+/* 召唤按钮组 */
+.summon-actions {
+  display: flex;
+  gap: 1rem;
+  width: 100%;
+}
+
+/* 一键召唤按钮 */
+.btn-auto-summon {
+  flex: 1;
+  padding: 1rem;
+  font-size: 1.1rem;
+  font-weight: bold;
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.btn-auto-summon:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(240, 147, 251, 0.4);
+}
+
+.btn-auto-summon:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: linear-gradient(135deg, #999 0%, #666 100%);
+}
+
+/* 调整确认按钮在组内的样式 */
+.summon-actions .btn-confirm-summon {
+  flex: 1;
+}
+
 
 .action-panel {
   padding: 1.5rem;

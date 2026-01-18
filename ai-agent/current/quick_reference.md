@@ -100,6 +100,22 @@ await inventoryStore.addItem('potion_hp_small', 1)
 await inventoryStore.useItem(itemId)
 ```
 
+await inventoryStore.addItem('potion_hp_small', 1)
+await inventoryStore.useItem(itemId)
+```
+
+### Exploration Store
+```javascript
+import { useExplorationStore } from '@/stores/exploration'
+const explorationStore = useExplorationStore()
+
+// 进入地图
+await explorationStore.enterMap('forest')
+
+// 移动 (返回包含 encounter/chest 信息的对象)
+const result = await explorationStore.movePlayer('up')
+```
+
 ---
 
 ## 📝 数据配置示例

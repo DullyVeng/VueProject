@@ -246,6 +246,10 @@ export const useFabaoStore = defineStore('fabao', () => {
                     current_shape: staticData.shape,
                     original_grid_count: countGrids(staticData.shape),
                     current_grid_count: countGrids(staticData.shape),
+                    // 温养相关字段初始化
+                    nourish_level: 0,
+                    nourish_accumulated_seconds: 0,
+                    nourish_start_time: null,
                     // 明确设置新法宝为未装备状态
                     is_in_dantian: false,
                     dantian_position: null,

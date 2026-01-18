@@ -77,10 +77,29 @@ export const useCombatStore = defineStore('combat', () => {
     // ==================== 战斗流程 ====================
 
     /**
-     * 开始战斗
-     */
-    async function startCombat(levelRange) {
-        const enemyData = getRandomMonster(levelRange)
+ * 开始战斗
+ * @param {Array|Object} monsterOrLevelRange - 怪物对象或等级范围数组 [min, max]
+ */
+    async function startCombat(monsterOrLevelRange) {
+        console.log('[战斗开始] 接收到的参数:', monsterOrLevelRange)
+
+        let enemyData
+
+        // 如果传入的是数组，说明是等级范围，随机生成怪物
+        if (Array.isArray(monsterOrLevelRange)) {
+            enemyData = getRandomMonster(monsterOrLevelRange)
+        }
+        // 如果是简单对象（只有 monsterId 和 level），转换为等级范围生成完整怪物
+        else if (monsterOrLevelRange.monsterId && monsterOrLevelRange.level) {
+            const level = monsterOrLevelRange.level
+            enemyData = getRandomMonster([level, level])
+        }
+        // 否则直接使用传入的怪物对象（精英怪、BOSS）
+        else {
+            enemyData = monsterOrLevelRange
+        }
+
+        console.log('[战斗开始] enemyData:', enemyData)
 
         // 重置结算锁
         isSettling.value = false
@@ -92,6 +111,7 @@ export const useCombatStore = defineStore('combat', () => {
             currentAction: null
         }
 
+        console.log('[战斗开始] enemy.value:', enemy.value)
         isInCombat.value = true
         turn.value = 1
         combatPhase.value = 'enemy_summon'
@@ -155,6 +175,70 @@ export const useCombatStore = defineStore('combat', () => {
 
         return result
     }
+
+    /**
+     * 一键召唤所有可召唤的法宝
+     * 根据当前行动点，自动召唤所有未损毁、在丹田中、未召唤的法宝
+     * 按照召唤成本从低到高排序，优先召唤成本低的法宝
+     */
+    async function autoSummonAll() {
+        if (!characterStore.character) return { success: false, reason: '角色数据未加载' }
+
+        // 获取所有可召唤的法宝
+        const availableFabaos = fabaoStore.dantianFabaos.filter(f =>
+            !f.isDamaged && !f.isSummoned
+        )
+
+        if (availableFabaos.length === 0) {
+            addLog('没有可召唤的法宝', 'info')
+            return { success: false, reason: '没有可召唤的法宝' }
+        }
+
+        // 按召唤成本从低到高排序
+        const sortedFabaos = [...availableFabaos].sort((a, b) => {
+            const costA = a.summonCost || 3
+            const costB = b.summonCost || 3
+            return costA - costB
+        })
+
+        let summonedCount = 0
+        let currentAP = characterStore.character.current_action_points || 0
+        const summonedNames = []
+
+        // 尝试召唤每个法宝
+        for (const fabao of sortedFabaos) {
+            const summonCost = fabao.summonCost || 3
+
+            // 检查行动点是否足够
+            if (currentAP >= summonCost) {
+                const result = await summonFabao(fabao.id)
+
+                if (result.success) {
+                    summonedCount++
+                    summonedNames.push(fabao.name)
+                    currentAP -= summonCost
+                    addLog(`自动召唤 ${fabao.name}（消耗${summonCost}点行动点）`, 'summon')
+                }
+            } else {
+                // 行动点不足，停止召唤
+                break
+            }
+        }
+
+        if (summonedCount > 0) {
+            addLog(`一键召唤完成！共召唤了${summonedCount}个法宝`, 'special')
+            return {
+                success: true,
+                count: summonedCount,
+                fabaos: summonedNames,
+                remainingAP: currentAP
+            }
+        } else {
+            addLog('行动点不足，无法召唤任何法宝', 'info')
+            return { success: false, reason: '行动点不足' }
+        }
+    }
+
 
     /**
      * 玩家确认召唤完成，进入战斗准备阶段
@@ -734,6 +818,12 @@ export const useCombatStore = defineStore('combat', () => {
             // 1. 材料掉落系统（使用怪物配置的drops）
             if (enemy.value.drops && Array.isArray(enemy.value.drops)) {
                 for (const drop of enemy.value.drops) {
+                    // 健壮性检查：确保 drop.amount 存在且是数组
+                    if (!drop || !drop.amount || !Array.isArray(drop.amount) || drop.amount.length < 2) {
+                        console.warn(`[战斗系统] 掉落配置错误，跳过该物品:`, drop)
+                        continue
+                    }
+
                     if (Math.random() < drop.chance) {
                         const [minAmount, maxAmount] = drop.amount
                         const amount = Math.floor(Math.random() * (maxAmount - minAmount + 1)) + minAmount
@@ -808,10 +898,35 @@ export const useCombatStore = defineStore('combat', () => {
 
             // 2. 击杀怪物任务（传入怪物ID）
             const isBoss = enemy.value.isBoss || false
+
+            console.log('[Combat] 结算任务检查:', {
+                enemyName: enemy.value.name,
+                isBoss: isBoss,
+                enemyId: enemy.value.id
+            })
+
             if (isBoss) {
+                console.log('[Combat] 触发BOSS击杀任务更新')
                 await dailyStore.updateProgress(DailyTaskType.KILL_BOSS, 'boss', 1)
+            } else {
+                console.log('[Combat] 非BOSS敌人，跳过BOSS任务更新')
             }
             await dailyStore.updateProgress(DailyTaskType.KILL_MONSTERS, enemy.value.id, 1)
+
+
+            // 3. 如果击败的是BOSS且来自探索地图，保存BOSS击败状态
+            const explorationStore = useExplorationStore()
+            if (isBoss && explorationStore.isInCombat && explorationStore.currentMapId) {
+                console.log('[战斗系统] 击败BOSS，保存击败状态到地图:', explorationStore.currentMapId)
+                await explorationStore.saveBossDefeatTime(explorationStore.currentMapId)
+            }
+
+            // 4. 如果击败的是显性怪物（精英怪），标记为已击败
+            if (explorationStore.isInCombat && enemy.value.id && !isBoss) {
+                console.log('[战斗系统] 击败显性怪物，标记为已击败:', enemy.value.id)
+                explorationStore.defeatMonster(enemy.value.id)
+            }
+
 
             // 更新角色数据
             const newExp = characterStore.character.exp + expReward
@@ -998,6 +1113,7 @@ export const useCombatStore = defineStore('combat', () => {
         // 方法
         startCombat,
         summonFabao,
+        autoSummonAll,
         playerConfirmSummon,
         startBattle,
         returnToMap,

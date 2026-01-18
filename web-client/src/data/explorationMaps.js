@@ -1,4 +1,7 @@
 import { DiggerMapGenerator } from '../utils/mapGenerator.js'
+import { generateEliteMonster } from './eliteMonsters.js'
+import { generateBoss } from './mapBosses.js'
+import { getChestConfig, CHEST_TYPES } from './chests.js'
 
 /**
  * 小地图探索系统数据配置
@@ -46,54 +49,116 @@ export const TERRAIN_STYLES = {
 // 初始化生成器
 const generator = new DiggerMapGenerator()
 
-// 辅助函数：为生成的地图放置显性怪物
-const placeMonsters = (map, monstersConfig) => {
-    const placedMonsters = []
-    const usedPositions = new Set()
+/**
+ * 通用避障算法：在可行走区域放置物体
+ * @param {Object} map - 地图数据
+ * @param {number} count - 要放置的数量
+ * @param {Set} usedPositions - 已使用位置集合
+ * @returns {Array} 有效位置数组 [{x, y}]
+ */
+const placeOnValidGround = (map, count, usedPositions = new Set()) => {
+    const positions = []
+    let attempts = 0
+    const maxAttempts = 1000
 
-    // 简单的随机放置尝试
-    const getRandomPos = () => {
-        let attempts = 0
-        while (attempts < 100) {
-            const x = Math.floor(Math.random() * map.width)
-            const y = Math.floor(Math.random() * map.height)
-            const idx = y * map.width + x
-            // 确保在地面或草地上，且不与出生点重叠
-            if ((map.terrain[idx] === TERRAIN_TYPES.GROUND || map.terrain[idx] === TERRAIN_TYPES.GRASS) &&
-                !(x === map.spawnPoint.x && y === map.spawnPoint.y) &&
-                !usedPositions.has(idx)) {
-                return { x, y, idx }
-            }
-            attempts++
+    while (positions.length < count && attempts < maxAttempts) {
+        const x = Math.floor(Math.random() * map.width)
+        const y = Math.floor(Math.random() * map.height)
+        const idx = y * map.width + x
+
+        // 确保在地面或草地上，且不与出生点重叠，且未被占用
+        if ((map.terrain[idx] === TERRAIN_TYPES.GROUND || map.terrain[idx] === TERRAIN_TYPES.GRASS) &&
+            !(x === map.spawnPoint.x && y === map.spawnPoint.y) &&
+            !usedPositions.has(idx)) {
+            positions.push({ x, y })
+            usedPositions.add(idx)
         }
-        return null
+        attempts++
     }
 
-    monstersConfig.forEach(m => {
-        const pos = getRandomPos()
-        if (pos) {
-            placedMonsters.push({
-                ...m,
-                x: pos.x,
-                y: pos.y
-            })
-            usedPositions.add(pos.idx)
+    return positions
+}
+
+// 辅助函数：为生成的地图放置精英怪
+const placeEliteMonsters = (map, eliteConfigs) => {
+    const usedPositions = new Set()
+    const positions = placeOnValidGround(map, eliteConfigs.length, usedPositions)
+
+    return eliteConfigs.map((config, index) => {
+        if (positions[index]) {
+            const elite = generateEliteMonster(config.baseMonsterId, config.level, config.prefix)
+            return {
+                ...elite,
+                id: `elite_${index}`,
+                x: positions[index].x,
+                y: positions[index].y
+            }
         }
+        return null
+    }).filter(m => m !== null)
+}
+
+// 辅助函数：放置 BOSS（单个）
+const placeBoss = (map, mapId, usedPositions) => {
+    const boss = generateBoss(mapId)
+    if (!boss) return null
+
+    const positions = placeOnValidGround(map, 1, usedPositions)
+    if (positions.length > 0) {
+        return {
+            ...boss,
+            x: positions[0].x,
+            y: positions[0].y
+        }
+    }
+    return null
+}
+
+// 辅助函数：放置宝箱
+const placeChests = (map, mapId, usedPositions) => {
+    const chestConfig = getChestConfig(mapId)
+    if (!chestConfig) return []
+
+    const chests = []
+    const { distribution } = chestConfig
+
+    // 按类型放置宝箱
+    Object.entries(distribution).forEach(([type, count]) => {
+        const positions = placeOnValidGround(map, count, usedPositions)
+        positions.forEach((pos, index) => {
+            chests.push({
+                id: `${type}_chest_${index}`,
+                type,
+                typeData: CHEST_TYPES[type.toUpperCase()],
+                x: pos.x,
+                y: pos.y,
+                opened: false
+            })
+        })
     })
 
-    return placedMonsters
+    return chests
 }
 
 const generateMapData = (baseConfig, genOptions) => {
     const generated = generator.generateMap(baseConfig.width, baseConfig.height, genOptions)
+    const usedPositions = new Set()
 
-    // 重新放置怪物
-    const visibleMonsters = placeMonsters(generated, baseConfig.visibleMonsters)
+    // 放置精英怪（替代原有显性怪物）
+    const visibleMonsters = placeEliteMonsters(generated, baseConfig.eliteMonsters)
+
+    // 放置 BOSS
+    const boss = placeBoss(generated, baseConfig.id, usedPositions)
+
+    // 放置宝箱
+    const chests = placeChests(generated, baseConfig.id, usedPositions)
 
     return {
         ...baseConfig,
         ...generated,
-        visibleMonsters
+        visibleMonsters,
+        boss,
+        chests
     }
 }
 
@@ -108,10 +173,11 @@ const baseConfigs = {
         tileSize: 32,
         encounterRate: 0.05,
         grassEncounterBonus: 0.10,
-        visibleMonsters: [
-            { id: 'slime_1', monsterId: 'slime', level: 1 },
-            { id: 'slime_2', monsterId: 'slime', level: 2 },
-            { id: 'wolf_1', monsterId: 'wolf', level: 3 }
+        // 精英怪配置
+        eliteMonsters: [
+            { baseMonsterId: 'slime', level: 2, prefix: 'swift' },
+            { baseMonsterId: 'slime', level: 3, prefix: 'venomous' },
+            { baseMonsterId: 'wolf', level: 5, prefix: 'berserker' }
         ],
         hiddenMonsters: [
             { monsterId: 'slime', weight: 50, levelRange: [1, 3] },
@@ -128,9 +194,10 @@ const baseConfigs = {
         tileSize: 32,
         encounterRate: 0.05,
         grassEncounterBonus: 0.08,
-        visibleMonsters: [
-            { id: 'rock_golem_1', monsterId: 'slime', level: 4 },
-            { id: 'mountain_wolf_1', monsterId: 'wolf', level: 5 }
+        // 精英怪配置
+        eliteMonsters: [
+            { baseMonsterId: 'wolf', level: 8, prefix: 'resilient' },
+            { baseMonsterId: 'goblin', level: 10, prefix: 'berserker' }
         ],
         hiddenMonsters: [
             { monsterId: 'slime', weight: 30, levelRange: [3, 5] },
@@ -147,10 +214,11 @@ const baseConfigs = {
         tileSize: 32,
         encounterRate: 0.05,
         grassEncounterBonus: 0,
-        visibleMonsters: [
-            { id: 'cave_bat_1', monsterId: 'slime', level: 6 },
-            { id: 'cave_spider_1', monsterId: 'wolf', level: 7 },
-            { id: 'shadow_beast_1', monsterId: 'boar', level: 8 }
+        // 精英怪配置
+        eliteMonsters: [
+            { baseMonsterId: 'wolf', level: 12, prefix: 'arcane' },
+            { baseMonsterId: 'goblin', level: 15, prefix: 'venomous' },
+            { baseMonsterId: 'dark_cultist', level: 18, prefix: 'swift' }
         ],
         hiddenMonsters: [
             { monsterId: 'slime', weight: 25, levelRange: [5, 8] },

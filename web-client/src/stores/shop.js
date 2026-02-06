@@ -4,17 +4,11 @@ import { ref } from 'vue'
 import { supabase } from '../supabase/client'
 import { useCharacterStore } from './character'
 import { useInventoryStore } from './inventory'
-import { getItemById } from '../data/items'
-
-// import { useFabaoStore } from './fabao' // Cancel dependency
 
 export const useShopStore = defineStore('shop', () => {
     const characterStore = useCharacterStore()
     const inventoryStore = useInventoryStore()
-    // const fabaoStore = useFabaoStore()
     const loading = ref(false)
-
-    // ... existing buyItem ...
 
     async function buyItem(item, quantity = 1) {
         if (!characterStore.character) return

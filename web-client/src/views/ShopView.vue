@@ -49,12 +49,21 @@ const goHome = () => {
 
 <style scoped>
 .shop-container {
-    min-height: 100vh;
+    height: 100vh;
+    height: 100dvh;
+    overflow-y: auto;
     display: flex;
     justify-content: center;
     background: #1a1f25;
     color: #fff;
     padding: 1rem;
+    -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 600px) {
+  .shop-container {
+    padding-bottom: 120px;
+  }
 }
 
 .panel {
@@ -65,6 +74,7 @@ const goHome = () => {
     border-radius: 16px;
     padding: 2rem;
     margin-top: 2rem;
+    height: fit-content;
 }
 
 .header {

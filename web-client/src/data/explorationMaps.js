@@ -54,26 +54,65 @@ const generator = new DiggerMapGenerator()
  * @param {Object} map - 地图数据
  * @param {number} count - 要放置的数量
  * @param {Set} usedPositions - 已使用位置集合
+ * @param {Object} options - 额外选项 { minNeighbors: 0, minDistanceFrom: {x,y,dist} }
  * @returns {Array} 有效位置数组 [{x, y}]
  */
-const placeOnValidGround = (map, count, usedPositions = new Set()) => {
+const placeOnValidGround = (map, count, usedPositions = new Set(), options = {}) => {
     const positions = []
     let attempts = 0
-    const maxAttempts = 1000
+    const maxAttempts = 2000
+    const { minNeighbors = 0, minDistanceFrom = null } = options
 
     while (positions.length < count && attempts < maxAttempts) {
         const x = Math.floor(Math.random() * map.width)
         const y = Math.floor(Math.random() * map.height)
         const idx = y * map.width + x
 
-        // 确保在地面或草地上，且不与出生点重叠，且未被占用
-        if ((map.terrain[idx] === TERRAIN_TYPES.GROUND || map.terrain[idx] === TERRAIN_TYPES.GRASS) &&
-            !(x === map.spawnPoint.x && y === map.spawnPoint.y) &&
-            !usedPositions.has(idx)) {
-            positions.push({ x, y })
-            usedPositions.add(idx)
+        // 1. 基础地形检查
+        const terrain = map.terrain[idx]
+        const isBaseValid = (terrain === TERRAIN_TYPES.GROUND || terrain === TERRAIN_TYPES.GRASS) &&
+                           !(x === map.spawnPoint.x && y === map.spawnPoint.y) &&
+                           !usedPositions.has(idx)
+
+        if (isBaseValid) {
+            let isValid = true
+
+            // 2. 检查周围邻居（开阔度检查），防止生成在墙角
+            if (minNeighbors > 0) {
+                // Simpler check for Boss: neighbors must be walkable
+                const neighbors = [
+                    {dx:-1, dy:-1}, {dx:0, dy:-1}, {dx:1, dy:-1},
+                    {dx:-1, dy:0},                  {dx:1, dy:0},
+                    {dx:-1, dy:1},  {dx:0, dy:1},  {dx:1, dy:1}
+                ]
+                let walkableCount = 0
+                neighbors.forEach(n => {
+                    const nx = x + n.dx, ny = y + n.dy
+                    if (nx >= 0 && nx < map.width && ny >= 0 && ny < map.height) {
+                        const nt = map.terrain[ny * map.width + nx]
+                        if (nt === TERRAIN_TYPES.GROUND || nt === TERRAIN_TYPES.GRASS) walkableCount++
+                    }
+                })
+                if (walkableCount < minNeighbors) isValid = false
+            }
+
+            // 3. 距离检查
+            if (isValid && minDistanceFrom) {
+                const dist = Math.abs(x - minDistanceFrom.x) + Math.abs(y - minDistanceFrom.y)
+                if (dist < minDistanceFrom.dist) isValid = false
+            }
+
+            if (isValid) {
+                positions.push({ x, y })
+                usedPositions.add(idx)
+            }
         }
         attempts++
+    }
+
+    // 如果高要求失败，降级重试一次（保证一定能生成）
+    if (positions.length < count && minNeighbors > 0) {
+        return [...positions, ...placeOnValidGround(map, count - positions.length, usedPositions, { ...options, minNeighbors: 0 })]
     }
 
     return positions
@@ -103,7 +142,12 @@ const placeBoss = (map, mapId, usedPositions) => {
     const boss = generateBoss(mapId)
     if (!boss) return null
 
-    const positions = placeOnValidGround(map, 1, usedPositions)
+    // BOSS 要求最高：周围至少 8 个格子都是平地（绝对不靠墙），且距离出生点至少 30 格
+    const positions = placeOnValidGround(map, 1, usedPositions, { 
+        minNeighbors: 8, 
+        minDistanceFrom: { x: map.spawnPoint.x, y: map.spawnPoint.y, dist: 30 }
+    })
+    
     if (positions.length > 0) {
         return {
             ...boss,

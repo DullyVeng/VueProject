@@ -297,8 +297,55 @@ async function confirmReset() {
 <style scoped>
 .attribute-view {
   padding: 20px;
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
+  overflow-y: auto;
   background: #f5f5f5;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 768px) {
+  .attribute-view {
+    padding: 10px;
+    padding-bottom: 120px; /* Space for control buttons */
+  }
+  
+  .available-points-panel {
+    padding: 20px;
+    flex-direction: column;
+    gap: 15px;
+    text-align: center;
+  }
+  
+  .points-display {
+    flex-direction: column;
+    gap: 5px;
+  }
+  
+  .points-value {
+    font-size: 36px;
+  }
+
+  .attributes-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .action-buttons {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: white;
+    padding: 15px;
+    box-shadow: 0 -4px 10px rgba(0,0,0,0.1);
+    z-index: 100;
+  }
+  
+  .btn-confirm, .btn-clear {
+    padding: 12px 20px;
+    font-size: 16px;
+    flex: 1;
+  }
 }
 
 .page-header {

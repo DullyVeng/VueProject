@@ -448,11 +448,14 @@ const goBack = () => router.push('/')
 .sect-container {
   width: 100vw;
   height: 100vh;
+  height: 100dvh;
   background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
   display: flex;
   flex-direction: column;
   color: #fff;
   font-family: 'Microsoft YaHei', sans-serif;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Header */
@@ -505,7 +508,6 @@ const goBack = () => router.push('/')
   display: flex;
   padding: 20px;
   gap: 20px;
-  overflow-y: auto;
 }
 
 @media (max-width: 1024px) {
@@ -513,6 +515,7 @@ const goBack = () => router.push('/')
     flex-direction: column;
     padding: 10px;
     gap: 15px;
+    padding-bottom: 120px;
   }
   .info-panel, .action-panel {
     width: 100%;
@@ -521,6 +524,7 @@ const goBack = () => router.push('/')
   .plot-grid {
     order: 1;
     grid-template-columns: repeat(3, 1fr);
+    flex: none;
   }
 }
 

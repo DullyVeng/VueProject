@@ -341,6 +341,38 @@ const mapWidth = 600
 const mapHeight = 400
 const nodeRadius = 30
 
+// 拖拽逻辑
+const scrollContainer = ref(null)
+const isDragging = ref(false)
+const startX = ref(0)
+const startY = ref(0)
+const scrollL = ref(0)
+const scrollT = ref(0)
+
+const onDragStart = (e) => {
+    isDragging.value = true
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY
+    startX.value = clientX
+    startY.value = clientY
+    scrollL.value = scrollContainer.value.scrollLeft
+    scrollT.value = scrollContainer.value.scrollTop
+}
+
+const onDragging = (e) => {
+    if (!isDragging.value) return
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY
+    const walkX = (clientX - startX.value)
+    const walkY = (clientY - startY.value)
+    scrollContainer.value.scrollLeft = scrollL.value - walkX
+    scrollContainer.value.scrollTop = scrollT.value - walkY
+}
+
+const onDragEnd = () => {
+    isDragging.value = false
+}
+
 // 检查地图是否解锁
 const isMapUnlocked = (mapId) => {
     return unlockedMaps.value.some(m => m.id === mapId)
@@ -499,7 +531,17 @@ const visibleMaps = computed(() => {
       <div class="right-panel">
         <h1 class="panel-title">世界地图</h1>
         
-        <div class="map-canvas-wrapper">
+        <div 
+            class="map-canvas-wrapper" 
+            ref="scrollContainer"
+            @mousedown="onDragStart"
+            @mousemove="onDragging"
+            @mouseup="onDragEnd"
+            @mouseleave="onDragEnd"
+            @touchstart="onDragStart"
+            @touchmove.prevent="onDragging"
+            @touchend="onDragEnd"
+        >
           <svg :width="mapWidth" :height="mapHeight" class="map-svg">
             <!-- 绘制连接线 -->
             <g class="connections-layer">
@@ -668,10 +710,19 @@ const visibleMaps = computed(() => {
 
 <style scoped>
 .map-container {
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
+  overflow-y: auto;
   background: #0f1215;
   color: #fff;
   padding: 1rem;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 1024px) {
+  .map-container {
+    padding-bottom: 120px;
+  }
 }
 
 .btn-back-float {
@@ -713,16 +764,86 @@ const visibleMaps = computed(() => {
   max-width: 1400px;
   margin: 0 auto;
   padding-top: 4rem;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 @media (max-width: 1024px) {
   .map-layout {
     grid-template-columns: 1fr;
+    grid-template-rows: 60vh 35vh; /* 60% for Map, 35% for Info roughly */
     padding-top: 3.5rem;
-    gap: 1rem;
+    gap: 0;
+    height: calc(100vh - 4rem);
+    width: 100%;
+    overflow: hidden; /* Ensure it stays within screen */
   }
-  .left-panel, .right-panel {
-    padding: 1rem;
+  
+  .right-panel {
+    order: 1;
+    border-radius: 16px 16px 0 0;
+    border-bottom: none;
+    display: flex;
+    flex-direction: column;
+    padding: 10px;
+    background: #000;
+    width: 100%;
+    min-width: 0; /* Prevents being pushed by children */
+    box-sizing: border-box;
+  }
+
+  .left-panel {
+    order: 2;
+    border-radius: 0 0 16px 16px;
+    padding: 10px;
+    overflow-y: auto;
+    background: rgba(26, 32, 44, 0.95);
+    border-top: 2px solid #64ffda;
+  }
+
+  .panel-title {
+    font-size: 1rem;
+    margin-bottom: 8px;
+  }
+
+  /* 缩小当前位置信息框内部元素 */
+  .location-card {
+    padding: 10px;
+  }
+  
+  .card-header h2 {
+    font-size: 1.1rem;
+  }
+  
+  .map-icon-large {
+    font-size: 2rem;
+  }
+  
+  .desc {
+    font-size: 0.8rem;
+    margin-bottom: 0.5rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .features, .resources-info, .npcs-section {
+    margin: 0.5rem 0;
+  }
+
+  .actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 0.8rem;
+  }
+  
+  .actions button {
+    flex: 1;
+    min-width: 100px;
+    padding: 0.6rem;
+    font-size: 0.8rem;
   }
 }
 
@@ -731,6 +852,8 @@ const visibleMaps = computed(() => {
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 16px;
   padding: 1.5rem;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .panel-title {
@@ -746,6 +869,8 @@ const visibleMaps = computed(() => {
   padding: 1.2rem;
   border-radius: 12px;
   border: 2px solid rgba(255, 255, 255, 0.05);
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .location-card.wild {
@@ -966,14 +1091,33 @@ const visibleMaps = computed(() => {
 /* 右侧地图可视化样式 */
 .map-canvas-wrapper {
   position: relative;
+  overflow: hidden; /* We handle scrolling via dragging */
+  cursor: grab;
+  border-radius: 12px;
+  background: #000;
+  touch-action: none; /* Prevent default touch behavior */
+  flex: 1; /* Fill the panel space */
+}
+
+.map-canvas-wrapper:active {
+  cursor: grabbing;
 }
 
 .map-svg {
-  width: 100%;
-  height: auto;
+  display: block;
+  min-width: 600px; /* Keep full size even on small screens */
+  width: 600px;
+  height: 400px;
   background: radial-gradient(circle at 50% 50%, #1a202c 0%, #0f1215 100%);
-  border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+@media (max-width: 600px) {
+  .map-svg {
+    min-width: 800px; /* Make it extra draggable on tiny screens */
+    width: 800px;
+    height: 533px; /* Keep aspect ratio if needed, or just let it be larger */
+  }
 }
 
 .connection-line.reachable {
@@ -1373,14 +1517,121 @@ const visibleMaps = computed(() => {
   font-weight: bold;
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 1024px) {
   .map-layout {
     grid-template-columns: 1fr;
+    grid-template-rows: 65vh 35vh;
+    padding-top: 3rem;
+    gap: 0;
+    height: 100vh;
+    width: 100%;
+    overflow: hidden;
   }
   
-  .result-content {
-    min-width: 90%;
-    max-width: 90%;
+  .right-panel {
+    order: 1;
+    border-radius: 0;
+    border: none;
+    padding: 5px;
+    background: #000;
+    min-width: 0;
+    width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .left-panel {
+    order: 2;
+    border-radius: 20px 20px 0 0;
+    padding: 12px;
+    background: #1a202c;
+    border-top: 2px solid #64ffda;
+    box-shadow: 0 -10px 25px rgba(0,0,0,0.5);
+    z-index: 10;
+    width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+
+  .left-panel .panel-title {
+    display: none;
+  }
+
+  .location-card {
+    padding: 0;
+    background: none;
+    border: none;
+    width: 100%;
+  }
+  
+  .card-header {
+    margin-bottom: 6px;
+    gap: 10px;
+    display: flex;
+    align-items: center;
+  }
+  
+  .map-icon-large {
+    font-size: 1.8rem;
+  }
+  
+  .card-header h2 {
+    font-size: 1rem;
+    margin: 0;
+  }
+
+  .area-badge, .badge {
+    font-size: 0.6rem;
+    padding: 1px 5px;
+  }
+
+  .desc {
+    display: none;
+  }
+
+  .level-info {
+    margin: 4px 0;
+    padding: 2px 8px;
+    font-size: 0.75rem;
+  }
+
+  .features h4, .resources-info h4, .npcs-section h4 {
+    display: none;
+  }
+
+  .features, .resources-info, .npcs-section {
+    margin: 4px 0;
+  }
+
+  .feature-tags, .resource-list, .npc-list {
+    gap: 4px;
+  }
+
+  .feature-tag, .resource-item, .npc-button {
+    font-size: 0.65rem;
+    padding: 2px 6px;
+  }
+
+  .actions {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+    margin-top: 8px;
+  }
+  
+  .actions button {
+    padding: 8px 4px;
+    font-size: 0.75rem;
+    min-width: 0;
+  }
+
+  .action-points {
+    margin-top: 8px;
+    padding: 4px;
+    font-size: 0.75rem;
+    border: none;
+    background: rgba(100, 255, 218, 0.05);
   }
 }
 </style>

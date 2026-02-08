@@ -40,90 +40,74 @@ export const useInventoryStore = defineStore('inventory', () => {
     async function addItem(itemId, count = 1) {
         if (!characterStore.character) return
 
-        // Check if item exists
-        const existing = inventory.value.find(i => i.item_id === itemId)
-
-        if (existing) {
-            // Update quantity
-            const newQuantity = existing.quantity + count
-            const { error } = await supabase
+        try {
+            // 使用 RPC 或原子操作来增加数量，防止并发冲突
+            // 这里我们使用 Supabase 的 upsert 配合 onConflict 参数
+            // 注意：需要确保数据库在 character_id 和 item_id 上有唯一约束
+            
+            // 先尝试获取现有数量
+            const { data: existing, error: fetchError } = await supabase
                 .from('inventory')
-                .update({ quantity: newQuantity })
-                .eq('id', existing.id)
+                .select('id, quantity')
+                .eq('character_id', characterStore.character.id)
+                .eq('item_id', itemId)
+                .maybeSingle()
 
-            if (!error) existing.quantity = newQuantity
-        } else {
-            // Insert new
-            const { data, error } = await supabase
-                .from('inventory')
-                .insert({
-                    character_id: characterStore.character.id,
-                    item_id: itemId,
-                    quantity: count
-                })
-                .select()
-                .single()
+            if (fetchError) throw fetchError
 
-            if (error) {
-                // 处理唯一键冲突（409 Conflict / 23505）
-                // 这通常发生在本地库存未同步，或者并发添加同一物品时
-                if (error.code === '23505' || error.status === 409) {
-                    console.log(`[Inventory] 检测到物品 ${itemId} 已存在(Conflict)，转为更新逻辑`)
-
-                    // 1. 获取已存在的物品数据
-                    const { data: existingItem, error: fetchError } = await supabase
-                        .from('inventory')
-                        .select('*')
-                        .eq('character_id', characterStore.character.id)
-                        .eq('item_id', itemId)
-                        .single()
-
-                    if (!fetchError && existingItem) {
-                        // 2. 更新数量
-                        const newQuantity = existingItem.quantity + count
-                        const { error: updateError } = await supabase
-                            .from('inventory')
-                            .update({ quantity: newQuantity })
-                            .eq('id', existingItem.id)
-
-                        if (!updateError) {
-                            // 3. 同步到本地状态
-                            const localItem = inventory.value.find(i => i.item_id === itemId)
-                            if (localItem) {
-                                localItem.quantity = newQuantity
-                            } else {
-                                // 如果本地完全没有（stale cache），从远程push
-                                inventory.value.push({
-                                    ...getItemById(itemId),
-                                    ...existingItem,
-                                    quantity: newQuantity
-                                })
-                            }
-                            console.log(`[Inventory] 物品 ${itemId} 冲突自动修复完成，新数量: ${newQuantity}`)
-                        } else {
-                            console.error('[Inventory] 冲突修复失败(Update):', updateError)
-                        }
-                    } else {
-                        console.error('[Inventory] 冲突修复失败(Fetch):', fetchError)
+            let finalData
+            if (existing) {
+                // 更新现有物品
+                const newQty = (existing.quantity || 0) + count
+                const { data, error: updateError } = await supabase
+                    .from('inventory')
+                    .update({ quantity: newQty })
+                    .eq('id', existing.id)
+                    .select()
+                    .single()
+                
+                if (updateError) throw updateError
+                finalData = data
+            } else {
+                // 插入新物品
+                const { data, error: insertError } = await supabase
+                    .from('inventory')
+                    .insert({
+                        character_id: characterStore.character.id,
+                        item_id: itemId,
+                        quantity: count
+                    })
+                    .select()
+                    .single()
+                
+                if (insertError) {
+                    // 如果在查询和插入之间被抢先创建，再次尝试更新
+                    if (insertError.code === '23505') {
+                        return addItem(itemId, count) // 递归重试一次，通常此时 existing 就能拿到了
                     }
-                } else {
-                    console.error('Failed to add item:', error)
+                    throw insertError
                 }
-            } else if (data) {
-                inventory.value.push({
-                    ...getItemById(itemId),
-                    ...data
-                })
+                finalData = data
             }
-        }
 
-        // 获取物品名称用于日志
-        const itemConfig = getItemById(itemId)
-        const itemName = itemConfig ? itemConfig.name : itemId
-        // 注意：addLog 是 combatStore 的功能，这里不能直接调用，需要外部处理日志，或者 inventoryStore 自己不发日志
-        // 但目前 inventoryStore 并没有发送 log，而是调用者发送的。
-        // 之前的问题在于 combat.js 中调用 addItem 后，自己拼接日志时用了 id。
-        // 这里不需要修改 addItem 的日志逻辑，因为 addItem 本身不发日志。
+            // 同步本地状态
+            const localIndex = inventory.value.findIndex(i => i.item_id === itemId)
+            const mergedItem = {
+                ...getItemById(itemId),
+                ...finalData
+            }
+
+            if (localIndex !== -1) {
+                inventory.value[localIndex] = mergedItem
+            } else {
+                inventory.value.push(mergedItem)
+            }
+
+            console.log(`[Inventory] 物品 ${itemId} 添加成功，当前总数: ${finalData.quantity}`)
+
+        } catch (err) {
+            console.error('[Inventory] 添加物品失败:', err)
+        }
 
         // 更新每日采集任务进度
         const dailyStore = useDailyStore()

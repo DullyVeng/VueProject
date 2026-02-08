@@ -177,14 +177,12 @@ export const useCombatStore = defineStore('combat', () => {
     }
 
     /**
-     * 一键召唤所有可召唤的法宝
-     * 根据当前行动点，自动召唤所有未损毁、在丹田中、未召唤的法宝
-     * 按照召唤成本从低到高排序，优先召唤成本低的法宝
+     * 一键召唤所有可召唤的法宝 (极致性能版)
      */
     async function autoSummonAll() {
         if (!characterStore.character) return { success: false, reason: '角色数据未加载' }
 
-        // 获取所有可召唤的法宝
+        // 1. 预计算：筛选出所有满足条件的法宝
         const availableFabaos = fabaoStore.dantianFabaos.filter(f =>
             !f.isDamaged && !f.isSummoned
         )
@@ -194,48 +192,62 @@ export const useCombatStore = defineStore('combat', () => {
             return { success: false, reason: '没有可召唤的法宝' }
         }
 
-        // 按召唤成本从低到高排序
-        const sortedFabaos = [...availableFabaos].sort((a, b) => {
-            const costA = a.summonCost || 3
-            const costB = b.summonCost || 3
-            return costA - costB
-        })
+        // 2. 排序：按成本从低到高，以召唤更多法宝
+        const sortedFabaos = [...availableFabaos].sort((a, b) => 
+            (a.summonCost || 3) - (b.summonCost || 3)
+        )
 
-        let summonedCount = 0
         let currentAP = characterStore.character.current_action_points || 0
-        const summonedNames = []
+        const toSummon = []
+        let totalCost = 0
 
-        // 尝试召唤每个法宝
         for (const fabao of sortedFabaos) {
-            const summonCost = fabao.summonCost || 3
-
-            // 检查行动点是否足够
-            if (currentAP >= summonCost) {
-                const result = await summonFabao(fabao.id)
-
-                if (result.success) {
-                    summonedCount++
-                    summonedNames.push(fabao.name)
-                    currentAP -= summonCost
-                    addLog(`自动召唤 ${fabao.name}（消耗${summonCost}点行动点）`, 'summon')
-                }
+            const cost = fabao.summonCost || 3
+            if (currentAP >= cost) {
+                toSummon.push(fabao)
+                currentAP -= cost
+                totalCost += cost
             } else {
-                // 行动点不足，停止召唤
                 break
             }
         }
 
-        if (summonedCount > 0) {
-            addLog(`一键召唤完成！共召唤了${summonedCount}个法宝`, 'special')
-            return {
-                success: true,
-                count: summonedCount,
-                fabaos: summonedNames,
-                remainingAP: currentAP
-            }
-        } else {
+        if (toSummon.length === 0) {
             addLog('行动点不足，无法召唤任何法宝', 'info')
             return { success: false, reason: '行动点不足' }
+        }
+
+        // 3. 瞬间同步本地状态 (Optimistic Update)
+        // 这一步让用户点击瞬间就看到法宝出现在战场上
+        const fabaoIds = toSummon.map(f => f.id)
+        
+        toSummon.forEach(f => {
+            f.isSummoned = true
+            f.is_summoned = true
+            if (!playerSummonedFabaos.value.find(pf => pf.id === f.id)) {
+                playerSummonedFabaos.value.push(f)
+            }
+        })
+        characterStore.character.current_action_points = currentAP
+
+        addLog(`[快速召唤] ${toSummon.length} 件法宝已归位，共消耗 ${totalCost}AP。`, 'special')
+
+        // 4. 后台静默同步数据库 (不阻塞 UI)
+        // 注意：不使用 await，除非我们需要处理错误回调
+        Promise.all([
+            supabase.from('fabao_instances').update({ is_summoned: true }).in('id', fabaoIds),
+            supabase.from('characters').update({ current_action_points: currentAP }).eq('id', characterStore.character.id)
+        ]).then(([{ error: e1 }, { error: e2 }]) => {
+            if (e1 || e2) {
+                console.error('[批量召唤同步失败]', e1 || e2)
+                addLog('同步状态时发生灵力波动，请注意检查数据', 'info')
+            }
+        })
+
+        return {
+            success: true,
+            count: toSummon.length,
+            remainingAP: currentAP
         }
     }
 

@@ -488,28 +488,43 @@ const turn = computed(() => combatStore.turn)
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  gap: 2rem;
-  padding: 2rem;
+  gap: 1rem;
+  padding: 1rem;
 }
 
 @media (min-width: 1024px) {
   .battle-arena {
     flex-direction: row;
     gap: 4rem;
+    padding: 2rem;
   }
 }
 
 .fighter-card {
   display: flex;
   align-items: center;
-  gap: 1.5rem;
+  gap: 1rem;
   background: rgba(0, 0, 0, 0.4);
-  padding: 1.5rem;
+  padding: 1rem;
   border-radius: 12px;
   width: 100%;
   max-width: 500px;
   transition: transform 0.2s;
   border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+@media (max-width: 600px) {
+  .fighter-card {
+    gap: 0.5rem;
+    padding: 0.75rem;
+  }
+  .model {
+    font-size: 2rem;
+  }
+  .info h3 {
+    font-size: 1rem;
+    margin: 0;
+  }
 }
 
 .fighter-card.enemy {
@@ -556,49 +571,67 @@ const turn = computed(() => combatStore.turn)
 
 .vs {
   font-weight: 900;
-  font-size: 2rem;
+  font-size: 1.5rem;
   color: rgba(255, 255, 255, 0.2);
 }
 
 /* 法宝战场 */
 .fabao-battlefield {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.5rem;
-  padding: 1.5rem;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  padding: 1rem;
   background: rgba(0, 0, 0, 0.4);
   border-top: 2px solid rgba(255, 255, 255, 0.1);
 }
 
+@media (min-width: 768px) {
+  .fabao-battlefield {
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    padding: 1.5rem;
+  }
+}
+
 .enemy-fabaos h4, .player-fabaos h4 {
-  margin: 0 0 1rem 0;
-  font-size: 1rem;
-  color: #fff;
+  margin: 0 0 0.75rem 0;
+  font-size: 0.9rem;
+  color: #64ffda;
+  border-bottom: 1px solid rgba(100, 255, 218, 0.2);
+  padding-bottom: 0.3rem;
 }
 
 .fabao-cards {
   display: flex;
-  gap: 0.75rem;
+  gap: 0.5rem;
   flex-wrap: wrap;
-  min-height: 80px;
+  min-height: 60px;
 }
 
 .fabao-battle-card {
-  padding: 0.75rem;
+  padding: 0.6rem;
   background: rgba(255, 255, 255, 0.08);
   border-radius: 10px;
-  min-width: 110px;
+  min-width: 100px;
+  flex: 1;
   text-align: center;
   border: 2px solid rgba(255, 255, 255, 0.1);
   transition: all 0.2s;
+  position: relative;
+}
+
+@media (max-width: 600px) {
+  .fabao-battle-card {
+    min-width: calc(50% - 0.5rem);
+  }
 }
 
 .fabao-battle-card.enemy {
-  border-color: rgba(231, 76, 60, 0.5);
+  border-color: rgba(231, 76, 60, 0.3);
 }
 
 .fabao-battle-card.player {
-  border-color: rgba(52, 152, 219, 0.5);
+  border-color: rgba(52, 152, 219, 0.3);
 }
 
 .fabao-battle-card:hover {
@@ -607,16 +640,16 @@ const turn = computed(() => combatStore.turn)
 }
 
 .fabao-icon {
-  font-size: 2rem;
+  font-size: 1.8rem;
   display: block;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.4rem;
 }
 
 .fabao-name {
   display: block;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   font-weight: bold;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.4rem;
   color: #fff;
 }
 
@@ -870,38 +903,29 @@ const turn = computed(() => combatStore.turn)
 }
 
 .log-panel {
-  height: 150px;
+  height: 120px;
   background: rgba(0, 0, 0, 0.6);
-  margin: 0 1rem;
-  padding: 1rem;
+  margin: 0.5rem;
+  padding: 0.75rem;
   border-radius: 8px;
   overflow-y: auto;
   border: 1px solid rgba(255, 255, 255, 0.1);
   font-family: monospace;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
+}
+
+@media (max-width: 600px) {
+  .log-panel {
+    height: 100px;
+    font-size: 0.8rem;
+  }
 }
 
 .log-panel p {
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.4rem;
 }
 
-/* 日志类型颜色 */
-.log-special { 
-  color: #f1c40f; 
-  font-weight: bold; 
-}
-.log-damage { 
-  color: #e74c3c; 
-}
-.log-heal { 
-  color: #2ecc71; 
-}
-.log-summon { 
-  color: #3498db; 
-}
-.log-info { 
-  color: #ddd; 
-}
+/* ... existing log colors ... */
 
 /* 召唤面板样式 */
 .summon-panel-overlay {
@@ -910,12 +934,12 @@ const turn = computed(() => combatStore.turn)
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.8);
+  background: rgba(0, 0, 0, 0.9);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 100;
-  padding: 1rem;
+  z-index: 200;
+  padding: 0.5rem;
   animation: fadeIn 0.2s ease-out;
 }
 
@@ -926,15 +950,33 @@ const turn = computed(() => combatStore.turn)
 
 .summon-panel {
   background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-  padding: 2rem;
-  border-radius: 16px;
+  padding: 1rem;
+  border-radius: 12px;
   max-width: 800px;
   width: 100%;
-  max-height: 80vh;
+  max-height: 90vh;
   overflow-y: auto;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-  border: 2px solid rgba(100, 255, 218, 0.3);
+  border: 1px solid rgba(100, 255, 218, 0.3);
   animation: scaleIn 0.2s ease-out;
+}
+
+@media (max-width: 600px) {
+  .summon-panel {
+    padding: 0.75rem;
+  }
+  .summon-header h3 {
+    font-size: 1.1rem;
+  }
+  .fabao-summon-card .fabao-icon {
+    font-size: 2rem;
+    min-width: 45px;
+  }
+  .fabao-stats {
+    font-size: 0.8rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
 }
 
 @keyframes scaleIn {
@@ -952,55 +994,55 @@ const turn = computed(() => combatStore.turn)
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1.5rem;
-  padding-bottom: 1rem;
-  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .summon-header h3 {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: 1.3rem;
   color: #64ffda;
 }
 
 .action-points {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-size: 1rem;
+  gap: 0.4rem;
+  font-size: 0.9rem;
   color: #ccc;
 }
 
 .ap-value {
   font-weight: bold;
-  font-size: 1.2rem;
+  font-size: 1.1rem;
   color: #64ffda;
 }
 
 .fabao-list {
-  max-height: 400px;
+  max-height: 50vh;
   overflow-y: auto;
   overflow-x: hidden;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
 }
 
 .fabao-summon-card {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  padding: 1rem;
+  gap: 0.75rem;
+  padding: 0.75rem;
   background: rgba(255, 255, 255, 0.05);
-  margin-bottom: 0.75rem;
-  border-radius: 10px;
+  margin-bottom: 0.5rem;
+  border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s;
-  border: 2px solid transparent;
+  border: 1px solid transparent;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .fabao-summon-card:hover:not(.disabled) {
   background: rgba(255, 255, 255, 0.1);
-  transform: translateX(5px);
-  border-color: rgba(100, 255, 218, 0.5);
+  border-color: rgba(100, 255, 218, 0.3);
 }
 
 .fabao-summon-card.disabled {
@@ -1010,13 +1052,13 @@ const turn = computed(() => combatStore.turn)
 }
 
 .fabao-summon-card.summoned {
-  background: rgba(76, 175, 80, 0.2);
+  background: rgba(76, 175, 80, 0.15);
   border-color: #4CAF50;
 }
 
 .fabao-summon-card .fabao-icon {
-  font-size: 2.5rem;
-  min-width: 60px;
+  font-size: 2rem;
+  min-width: 50px;
   text-align: center;
 }
 
@@ -1027,21 +1069,21 @@ const turn = computed(() => combatStore.turn)
 .fabao-name-row {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
+  gap: 0.4rem;
+  margin-bottom: 0.3rem;
 }
 
 .fabao-name-row .fabao-name {
   font-weight: bold;
-  font-size: 1.1rem;
+  font-size: 1rem;
   color: #fff;
   margin: 0;
 }
 
 .status-badge {
-  padding: 0.2rem 0.5rem;
+  padding: 0.15rem 0.4rem;
   border-radius: 4px;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: bold;
 }
 
@@ -1057,22 +1099,22 @@ const turn = computed(() => combatStore.turn)
 
 .fabao-stats {
   display: flex;
-  gap: 1rem;
-  font-size: 0.9rem;
+  gap: 0.75rem;
+  font-size: 0.85rem;
   color: #aaa;
 }
 
 .empty-state {
   text-align: center;
-  padding: 3rem 1rem;
+  padding: 2rem 1rem;
   color: #666;
-  font-size: 1.1rem;
+  font-size: 1rem;
 }
 
 .btn-confirm-summon {
   width: 100%;
-  padding: 1rem;
-  font-size: 1.1rem;
+  padding: 0.85rem;
+  font-size: 1rem;
   font-weight: bold;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: #fff;
@@ -1090,15 +1132,15 @@ const turn = computed(() => combatStore.turn)
 /* 召唤按钮组 */
 .summon-actions {
   display: flex;
-  gap: 1rem;
+  gap: 0.75rem;
   width: 100%;
 }
 
 /* 一键召唤按钮 */
 .btn-auto-summon {
   flex: 1;
-  padding: 1rem;
-  font-size: 1.1rem;
+  padding: 0.85rem;
+  font-size: 1rem;
   font-weight: bold;
   background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
   color: #fff;
@@ -1126,29 +1168,30 @@ const turn = computed(() => combatStore.turn)
 
 
 .action-panel {
-  padding: 1.5rem;
+  padding: 1rem;
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-  background: rgba(0, 0, 0, 0.3);
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+  background: rgba(0, 0, 0, 0.4);
 }
 
 @media (min-width: 1024px) {
   .action-panel {
     grid-template-columns: repeat(4, 1fr);
-    padding: 2rem 4rem;
+    padding: 1.5rem 4rem;
   }
 }
 
 .btn-action {
-  padding: 1rem;
-  font-size: 1rem;
+  padding: 0.85rem;
+  font-size: 0.95rem;
   font-weight: bold;
   border: none;
   border-radius: 8px;
   cursor: pointer;
   color: #fff;
   transition: all 0.2s;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .btn-action:disabled {

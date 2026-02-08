@@ -74,6 +74,25 @@ const goHome = () => {
     margin-bottom: 2rem;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     padding-bottom: 1rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+@media (max-width: 600px) {
+  .panel {
+    padding: 1rem;
+    margin-top: 1rem;
+  }
+  .header h1 {
+    font-size: 1.2rem;
+    width: 100%;
+    order: -1;
+    text-align: center;
+    margin: 0;
+  }
+  .item-card {
+    padding: 0.75rem;
+  }
 }
 
 .btn-back {

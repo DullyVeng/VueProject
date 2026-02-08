@@ -505,7 +505,35 @@ const goBack = () => router.push('/')
   display: flex;
   padding: 20px;
   gap: 20px;
-  overflow: hidden;
+  overflow-y: auto;
+}
+
+@media (max-width: 1024px) {
+  .sect-content {
+    flex-direction: column;
+    padding: 10px;
+    gap: 15px;
+  }
+  .info-panel, .action-panel {
+    width: 100%;
+    order: 2; /* Move panels below grid on mobile? or keep them? */
+  }
+  .plot-grid {
+    order: 1;
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .plot-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .sect-header {
+    padding: 10px 15px;
+  }
+  .sect-header h1 {
+    font-size: 1.2rem;
+  }
 }
 
 /* Info Panel */
@@ -514,6 +542,7 @@ const goBack = () => router.push('/')
   display: flex;
   flex-direction: column;
   gap: 15px;
+  flex-shrink: 0;
 }
 
 .panel-section {
@@ -598,7 +627,12 @@ const goBack = () => router.push('/')
   grid-template-columns: repeat(4, 1fr);
   gap: 15px;
   padding: 10px;
-  overflow-y: auto;
+}
+
+@media (min-width: 1025px) {
+  .plot-grid {
+    overflow-y: auto;
+  }
 }
 
 .plot-cell {

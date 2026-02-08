@@ -50,6 +50,11 @@ const closeRewardModal = () => {
 const canvasRef = ref(null)
 const containerRef = ref(null)
 
+const isMobile = ref(false)
+const checkMobile = () => {
+    isMobile.value = window.innerWidth <= 768
+}
+
 // 地图配置
 const TILE_SIZE = 32
 const PLAYER_SIZE = 24
@@ -61,6 +66,9 @@ let animationFrameId = null
 
 // 初始化
 onMounted(async () => {
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    
     const mapId = route.params.mapId
     if (!mapId) {
         router.push('/map')
@@ -92,422 +100,37 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+    window.removeEventListener('resize', checkMobile)
     window.removeEventListener('keydown', handleKeyDown)
     if (animationFrameId) {
         cancelAnimationFrame(animationFrameId)
     }
 })
 
-// 监听玩家位置变化重绘
-watch(
-    () => explorationStore.playerPosition,
-    () => {
-        drawMap()
-    },
-    { deep: true }
-)
-
-// 监听怪物击败变化重绘
-watch(
-    () => explorationStore.defeatedMonsters,
-    () => {
-        drawMap()
-    },
-    { deep: true }
-)
-
-// 初始化 Canvas
-const initCanvas = () => {
-    const canvas = canvasRef.value
-    if (!canvas || !explorationStore.currentMap) return
-
-    // 使用固定的视口大小（可见区域）
-    const VIEWPORT_WIDTH = 640  // 20 格 * 32px
-    const VIEWPORT_HEIGHT = 480 // 15 格 * 32px
+// 移动逻辑封装
+const movePlayer = async (direction) => {
+    if (explorationStore.pendingEncounter) return
     
-    canvas.width = VIEWPORT_WIDTH
-    canvas.height = VIEWPORT_HEIGHT
+    const result = await explorationStore.movePlayer(direction)
 
-    drawMap()
-}
-
-// 开始动画循环
-const startAnimation = () => {
-    let lastTime = 0
-    const animate = (time) => {
-        if (time - lastTime > 300) {
-            playerSpriteFrame.value = (playerSpriteFrame.value + 1) % 2
-            lastTime = time
-        }
-        drawMap()
-        animationFrameId = requestAnimationFrame(animate)
-    }
-    animationFrameId = requestAnimationFrame(animate)
-}
-
-// 绘制地图
-const drawMap = () => {
-    const canvas = canvasRef.value
-    if (!canvas || !explorationStore.currentMap) return
-
-    const ctx = canvas.getContext('2d')
-    const map = explorationStore.currentMap
-    const pos = explorationStore.playerPosition
-
-    // 计算摄像机偏移，使玩家始终处于屏幕中心
-    const cameraX = pos.x * TILE_SIZE - canvas.width / 2 + TILE_SIZE / 2
-    const cameraY = pos.y * TILE_SIZE - canvas.height / 2 + TILE_SIZE / 2
-
-    // 限制摄像机范围，防止显示地图边界外的内容
-    const maxCameraX = map.width * TILE_SIZE - canvas.width
-    const maxCameraY = map.height * TILE_SIZE - canvas.height
-    const clampedCameraX = Math.max(0, Math.min(cameraX, maxCameraX))
-    const clampedCameraY = Math.max(0, Math.min(cameraY, maxCameraY))
-
-    // 清空画布
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-
-    // 保存当前状态
-    ctx.save()
-
-    // 应用摄像机偏移
-    ctx.translate(-clampedCameraX, -clampedCameraY)
-
-    // 绘制地形
-    // 绘制地形
-    // 视口裁剪优化：只渲染当前屏幕可见范围内的格子
-    // 计算可见区域的起始和结束索引（加减 1 是为了防止边缘闪烁）
-    const startX = Math.max(0, Math.floor(clampedCameraX / TILE_SIZE))
-    const endX = Math.min(map.width, Math.ceil((clampedCameraX + canvas.width) / TILE_SIZE))
-    const startY = Math.max(0, Math.floor(clampedCameraY / TILE_SIZE))
-    const endY = Math.min(map.height, Math.ceil((clampedCameraY + canvas.height) / TILE_SIZE))
-
-    for (let y = startY; y < endY; y++) {
-        for (let x = startX; x < endX; x++) {
-            // 访问地形数据 (兼容 1D Int8Array 和 2D 数组)
-            let terrain
-            if (map.terrain.length === map.width * map.height) {
-                 // 1D 数组
-                 terrain = map.terrain[y * map.width + x]
-            } else {
-                 // 2D 数组 (旧兼容)
-                 terrain = map.terrain[y][x]
-            }
-            
-            const style = TERRAIN_STYLES[terrain] || TERRAIN_STYLES[TERRAIN_TYPES.GROUND]
-
-            ctx.fillStyle = style.color
-            ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE)
-
-            // 绘制网格线
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)'
-            ctx.strokeRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE)
-
-            // 出口特殊标记
-            if (terrain === TERRAIN_TYPES.EXIT) {
-                ctx.fillStyle = 'rgba(255, 200, 100, 0.3)'
-                ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE)
-                
-                // 绘制出口箭头指示
-                ctx.fillStyle = '#ffc864'
-                ctx.font = '20px Arial'
-                ctx.textAlign = 'center'
-                ctx.textBaseline = 'middle'
-                ctx.fillText('↩', x * TILE_SIZE + TILE_SIZE / 2, y * TILE_SIZE + TILE_SIZE / 2)
-            }
+    // 处理遭遇
+    if (result.encounter) {
+        handleEncounter(result.encounter)
+    } else if (result.chest) {
+        // 宝箱开启成功，显示奖励弹窗
+        if (result.chest.loot && result.chest.loot.length > 0) {
+            rewardList.value = result.chest.loot.map(item => {
+                const itemDef = getItemById(item.id)
+                return {
+                    ...item,
+                    name: itemDef ? itemDef.name : '未知物品',
+                    icon: itemDef ? itemDef.icon : '📦',
+                    desc: itemDef ? itemDef.description : ''
+                }
+            })
+            showRewardModal.value = true
         }
     }
-
-    // 绘制宝箱（在怪物之前，避免遮挡）
-    explorationStore.availableChests.forEach(chest => {
-        drawChest(ctx, chest)
-    })
-    
-    // 绘制显性怪物（精英怪）
-    explorationStore.visibleMonsters.forEach(monster => {
-        drawMonster(ctx, monster)
-    })
-    
-    // 绘制 BOSS 或 BOSS 击败后的出口
-    if (explorationStore.currentMap?.boss) {
-        if (!explorationStore.bossDefeated) {
-            // BOSS 未击败，绘制 BOSS
-            drawBoss(ctx, explorationStore.currentMap.boss)
-        } else {
-            // BOSS 已击败，在 BOSS 位置绘制出口
-            drawBossExit(ctx, explorationStore.currentMap.boss)
-        }
-    }
-
-
-    // 绘制玩家
-    drawPlayer(ctx)
-
-    // 恢复状态
-    ctx.restore()
-    
-    // 绘制 BOSS 方向指引（在 restore 之后，使用屏幕坐标）
-    if (explorationStore.bossDirection) {
-        drawBossDirection(ctx)
-    }
-}
-
-// 绘制玩家
-const drawPlayer = (ctx) => {
-    const pos = explorationStore.playerPosition
-    const x = pos.x * TILE_SIZE + TILE_SIZE / 2
-    const y = pos.y * TILE_SIZE + TILE_SIZE / 2
-
-    // 玩家身体（圆形）
-    ctx.fillStyle = '#64ffda'
-    ctx.beginPath()
-    ctx.arc(x, y, PLAYER_SIZE / 2, 0, Math.PI * 2)
-    ctx.fill()
-
-    // 玩家边框
-    ctx.strokeStyle = '#ffffff'
-    ctx.lineWidth = 2
-    ctx.stroke()
-
-    // 方向指示
-    const dir = explorationStore.playerDirection
-    const arrowOffset = PLAYER_SIZE / 2 - 4
-    let arrowX = x, arrowY = y
-    if (dir === 'up') arrowY -= arrowOffset
-    else if (dir === 'down') arrowY += arrowOffset
-    else if (dir === 'left') arrowX -= arrowOffset
-    else if (dir === 'right') arrowX += arrowOffset
-
-    ctx.fillStyle = '#0f1215'
-    ctx.beginPath()
-    ctx.arc(arrowX, arrowY, 4, 0, Math.PI * 2)
-    ctx.fill()
-}
-
-// 绘制怪物（精英怪）
-const drawMonster = (ctx, monster) => {
-    const x = monster.x * TILE_SIZE + TILE_SIZE / 2
-    const y = monster.y * TILE_SIZE + TILE_SIZE / 2
-
-    // 怪物身体（精英怪用金色边框）
-    const isElite = monster.isElite || false
-    ctx.fillStyle = isElite ? '#f39c12' : '#e74c3c'
-    ctx.fillRect(
-        x - MONSTER_SIZE / 2,
-        y - MONSTER_SIZE / 2,
-        MONSTER_SIZE,
-        MONSTER_SIZE
-    )
-
-    // 怪物边框
-    ctx.strokeStyle = isElite ? '#f1c40f' : '#c0392b'
-    ctx.lineWidth = isElite ? 3 : 2
-    ctx.strokeRect(
-        x - MONSTER_SIZE / 2,
-        y - MONSTER_SIZE / 2,
-        MONSTER_SIZE,
-        MONSTER_SIZE
-    )
-    
-    // 精英怪皇冠标识
-    if (isElite) {
-        ctx.fillStyle = '#f1c40f'
-        ctx.font = 'bold 14px Arial'
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'bottom'
-        ctx.fillText('👑', x, y - MONSTER_SIZE / 2 - 2)
-    }
-
-    // 等级标识
-    ctx.fillStyle = '#ffffff'
-    ctx.font = 'bold 10px Arial'
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText(`${monster.level}`, x, y)
-}
-
-// 绘制 BOSS
-const drawBoss = (ctx, boss) => {
-    const x = boss.x * TILE_SIZE + TILE_SIZE / 2
-    const y = boss.y * TILE_SIZE + TILE_SIZE / 2
-    const BOSS_SIZE = 40  // BOSS 更大
-    
-    // BOSS 光环效果（脉动）
-    const pulseSize = BOSS_SIZE + 8 + Math.sin(Date.now() / 200) * 4
-    ctx.fillStyle = 'rgba(192, 57, 43, 0.3)'
-    ctx.beginPath()
-    ctx.arc(x, y, pulseSize / 2, 0, Math.PI * 2)
-    ctx.fill()
-    
-    // BOSS 身体
-    ctx.fillStyle = '#c0392b'
-    ctx.fillRect(
-        x - BOSS_SIZE / 2,
-        y - BOSS_SIZE / 2,
-        BOSS_SIZE,
-        BOSS_SIZE
-    )
-    
-    // BOSS 边框（金色）
-    ctx.strokeStyle = '#f39c12'
-    ctx.lineWidth = 4
-    ctx.strokeRect(
-        x - BOSS_SIZE / 2,
-        y - BOSS_SIZE / 2,
-        BOSS_SIZE,
-        BOSS_SIZE
-    )
-    
-    // BOSS 皇冠
-    ctx.font = 'bold 20px Arial'
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'bottom'
-    ctx.fillStyle = '#f1c40f'
-    ctx.fillText('👑', x, y - BOSS_SIZE / 2 - 4)
-    
-    // BOSS 等级
-    ctx.fillStyle = '#ffffff'
-    ctx.font = 'bold 14px Arial'
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText(`${boss.level}`, x, y)
-    
-    // BOSS 标签
-    ctx.font = 'bold 10px Arial'
-    ctx.fillStyle = '#f39c12'
-    ctx.fillText('BOSS', x, y + BOSS_SIZE / 2 + 12)
-}
-
-// 绘制 BOSS 击败后的出口
-const drawBossExit = (ctx, bossPosition) => {
-    const x = bossPosition.x * TILE_SIZE + TILE_SIZE / 2
-    const y = bossPosition.y * TILE_SIZE + TILE_SIZE / 2
-    const EXIT_SIZE = 40
-    
-    // 胜利光环效果（脉动金光）
-    const pulseSize = EXIT_SIZE + 10 + Math.sin(Date.now() / 150) * 6
-    ctx.fillStyle = 'rgba(241, 196, 15, 0.3)'
-    ctx.beginPath()
-    ctx.arc(x, y, pulseSize / 2, 0, Math.PI * 2)
-    ctx.fill()
-    
-    // 外层金色光环
-    ctx.strokeStyle = '#f1c40f'
-    ctx.lineWidth = 3
-    ctx.beginPath()
-    ctx.arc(x, y, EXIT_SIZE / 2, 0, Math.PI * 2)
-    ctx.stroke()
-    
-    // 内部填充
-    ctx.fillStyle = 'rgba(255, 215, 0, 0.2)'
-    ctx.beginPath()
-    ctx.arc(x, y, EXIT_SIZE / 2, 0, Math.PI * 2)
-    ctx.fill()
-    
-    // 胜利图标（皇冠 + 出口箭头）
-    ctx.font = 'bold 24px Arial'
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillStyle = '#f1c40f'
-    ctx.fillText('👑', x, y - 8)
-    
-    // 出口箭头
-    ctx.font = 'bold 18px Arial'
-    ctx.fillStyle = '#ffc864'
-    ctx.fillText('↩', x, y + 10)
-    
-    // 提示文字
-    ctx.font = 'bold 9px Arial'
-    ctx.fillStyle = '#f39c12'
-    ctx.fillText('EXIT', x, y + EXIT_SIZE / 2 + 12)
-}
-
-
-// 绘制宝箱
-const drawChest = (ctx, chest) => {
-    const x = chest.x * TILE_SIZE + TILE_SIZE / 2
-    const y = chest.y * TILE_SIZE + TILE_SIZE / 2
-    const CHEST_SIZE = 28
-    
-    // 宝箱颜色（根据类型）
-    let chestColor = '#8b4513'  // 木箱
-    if (chest.type === 'iron') chestColor = '#7f8c8d'
-    if (chest.type === 'golden') chestColor = '#f39c12'
-    
-    // 宝箱主体
-    ctx.fillStyle = chestColor
-    ctx.fillRect(
-        x - CHEST_SIZE / 2,
-        y - CHEST_SIZE / 2,
-        CHEST_SIZE,
-        CHEST_SIZE
-    )
-    
-    // 宝箱边框
-    ctx.strokeStyle = chest.type === 'golden' ? '#f1c40f' : 'rgba(255, 255, 255, 0.5)'
-    ctx.lineWidth = 2
-    ctx.strokeRect(
-        x - CHEST_SIZE / 2,
-        y - CHEST_SIZE / 2,
-        CHEST_SIZE,
-        CHEST_SIZE
-    )
-    
-    // 宝箱图标
-    ctx.font = '18px Arial'
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText(chest.typeData?.icon || '📦', x, y)
-}
-
-// 绘制 BOSS 方向指引
-const drawBossDirection = (ctx) => {
-    const canvas = canvasRef.value
-    if (!canvas) return
-    
-    const bossDir = explorationStore.bossDirection
-    if (!bossDir || bossDir.distance < 10) return  // 太近不显示
-    
-    // 计算箭头位置（在屏幕边缘）
-    const centerX = canvas.width / 2
-    const centerY = canvas.height / 2
-    const angle = bossDir.angle
-    
-    // 转换为弧度
-    const radian = angle * Math.PI / 180
-    const arrowDistance = 200  // 箭头距离中心的距离
-    
-    const arrowX = centerX + Math.cos(radian) * arrowDistance
-    const arrowY = centerY + Math.sin(radian) * arrowDistance
-    
-    // 绘制箭头
-    ctx.save()
-    ctx.translate(arrowX, arrowY)
-    ctx.rotate(radian)
-    
-    // 箭头形状
-    ctx.fillStyle = 'rgba(243, 156, 18, 0.8)'
-    ctx.beginPath()
-    ctx.moveTo(15, 0)
-    ctx.lineTo(-10, -10)
-    ctx.lineTo(-10, 10)
-    ctx.closePath()
-    ctx.fill()
-    
-    // 箭头边框
-    ctx.strokeStyle = '#f39c12'
-    ctx.lineWidth = 2
-    ctx.stroke()
-    
-    ctx.restore()
-    
-    // 距离文字
-    ctx.font = 'bold 12px Arial'
-    ctx.fillStyle = '#f39c12'
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    const distanceText = `BOSS ${Math.floor(bossDir.distance)}格`
-    ctx.fillText(distanceText, arrowX, arrowY + 20)
 }
 
 // 键盘控制
@@ -522,11 +145,6 @@ const handleKeyDown = async (e) => {
         return
     }
 
-    // 如果有待处理的遭遇，跳过移动
-    if (explorationStore.pendingEncounter) {
-        return
-    }
-
     const keyMap = {
         'ArrowUp': 'up', 'w': 'up', 'W': 'up',
         'ArrowDown': 'down', 's': 'down', 'S': 'down',
@@ -537,26 +155,7 @@ const handleKeyDown = async (e) => {
     const direction = keyMap[e.key]
     if (direction) {
         e.preventDefault()
-        const result = await explorationStore.movePlayer(direction)
-
-        // 处理遭遇
-        if (result.encounter) {
-            handleEncounter(result.encounter)
-        } else if (result.chest) {
-            // 宝箱开启成功，显示奖励弹窗
-            if (result.chest.loot && result.chest.loot.length > 0) {
-                rewardList.value = result.chest.loot.map(item => {
-                    const itemDef = getItemById(item.id)
-                    return {
-                        ...item,
-                        name: itemDef ? itemDef.name : '未知物品',
-                        icon: itemDef ? itemDef.icon : '📦',
-                        desc: itemDef ? itemDef.description : ''
-                    }
-                })
-                showRewardModal.value = true
-            }
-        }
+        await movePlayer(direction)
     }
 
     // ESC 键尝试退出
@@ -645,10 +244,21 @@ const handleBackClick = () => {
                     </div>
                 </div>
             </div>
+
+            <!-- 移动端虚拟方向键 (D-Pad) -->
+            <div v-if="isMobile" class="mobile-dpad">
+                <button class="dpad-btn up" @click="movePlayer('up')">▲</button>
+                <div class="dpad-mid">
+                    <button class="dpad-btn left" @click="movePlayer('left')">◀</button>
+                    <div class="dpad-center"></div>
+                    <button class="dpad-btn right" @click="movePlayer('right')">▶</button>
+                </div>
+                <button class="dpad-btn down" @click="movePlayer('down')">▼</button>
+            </div>
         </div>
 
         <!-- 底部信息栏 -->
-        <div class="bottom-bar">
+        <div class="bottom-bar" v-if="!isMobile">
             <div class="controls-hint">
                 <span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span>
                 或方向键移动
@@ -660,7 +270,7 @@ const handleBackClick = () => {
         </div>
 
         <!-- UI控制按钮栏 -->
-        <div class="ui-controls">
+        <div class="ui-controls" :class="{ 'is-mobile-ui': isMobile }">
             <button class="ui-btn" @click="showCharacter = !showCharacter" title="角色">
                 <span class="icon">👤</span>
                 <span class="label">角色</span>
@@ -789,6 +399,58 @@ const handleBackClick = () => {
     border: 2px solid rgba(100, 255, 218, 0.3);
     border-radius: 8px;
     box-shadow: 0 0 30px rgba(100, 255, 218, 0.1);
+    max-width: 100%;
+    height: auto !important;
+    image-rendering: pixelated;
+}
+
+/* 移动端虚拟方向键 (D-Pad) 样式 */
+.mobile-dpad {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    z-index: 150;
+    user-select: none;
+    background: rgba(0,0,0,0.3);
+    padding: 10px;
+    border-radius: 50%;
+    backdrop-filter: blur(5px);
+}
+
+.dpad-mid {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.dpad-btn {
+    width: 50px;
+    height: 50px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 2px solid rgba(100, 255, 218, 0.5);
+    color: #64ffda;
+    border-radius: 12px;
+    font-size: 1.5rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.dpad-btn:active {
+    background: rgba(100, 255, 218, 0.3);
+    transform: scale(0.9);
+}
+
+.dpad-center {
+    width: 50px;
+    height: 50px;
 }
 
 /* UI控制按钮 */
@@ -800,6 +462,23 @@ const handleBackClick = () => {
     flex-direction: row;  /* 横向排列 */
     gap: 0.5rem;
     z-index: 100;
+}
+
+.ui-controls.is-mobile-ui {
+    bottom: 1rem;
+    left: 1rem;
+    right: 1rem;
+    justify-content: center;
+    background: rgba(0,0,0,0.5);
+    padding: 10px;
+    border-radius: 20px;
+    backdrop-filter: blur(10px);
+}
+
+.ui-controls.is-mobile-ui .ui-btn {
+    min-width: 60px;
+    padding: 0.5rem;
+    background: rgba(255,255,255,0.05);
 }
 
 .ui-btn {
@@ -815,6 +494,22 @@ const handleBackClick = () => {
     transition: all 0.3s;
     backdrop-filter: blur(10px);
     min-width: 70px;
+    -webkit-tap-highlight-color: transparent;
+}
+
+@media (max-width: 768px) {
+    .exploration-container {
+        padding: 0.5rem;
+    }
+    .top-bar {
+        margin-bottom: 0.5rem;
+    }
+    .ui-btn .icon {
+        font-size: 1.2rem;
+    }
+    .ui-btn .label {
+        font-size: 0.65rem;
+    }
 }
 
 .ui-btn:hover {

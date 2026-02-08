@@ -145,7 +145,7 @@ const handleUnequip = async (item) => {
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
   gap: 10px;
 }
 
@@ -201,6 +201,18 @@ const handleUnequip = async (item) => {
 @media (max-width: 600px) {
   .inventory-panel {
     width: 100%;
+    border-left: none;
   }
+  
+  .panel-header {
+    padding: 0.8rem 1rem;
+  }
+  
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(50px, 1fr));
+    gap: 8px;
+  }
+
+  .item-icon { font-size: 1.5rem; }
 }
 </style>

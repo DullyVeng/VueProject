@@ -676,19 +676,28 @@ const visibleMaps = computed(() => {
 
 .btn-back-float {
   position: fixed;
-  top: 1.5rem;
-  left: 1.5rem;
+  top: 1rem;
+  left: 1rem;
   background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.2);
-  padding: 0.8rem 1.5rem;
+  padding: 0.6rem 1.2rem;
   border-radius: 12px;
   color: #fff;
   cursor: pointer;
   transition: all 0.3s;
-  font-size: 1rem;
+  font-size: 0.9rem;
   z-index: 1000;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (max-width: 768px) {
+  .btn-back-float {
+    top: 0.5rem;
+    left: 0.5rem;
+    padding: 0.5rem 1rem;
+  }
 }
 
 .btn-back-float:hover {
@@ -706,6 +715,17 @@ const visibleMaps = computed(() => {
   padding-top: 4rem;
 }
 
+@media (max-width: 1024px) {
+  .map-layout {
+    grid-template-columns: 1fr;
+    padding-top: 3.5rem;
+    gap: 1rem;
+  }
+  .left-panel, .right-panel {
+    padding: 1rem;
+  }
+}
+
 .left-panel, .right-panel {
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -715,7 +735,7 @@ const visibleMaps = computed(() => {
 
 .panel-title {
   font-size: 1.3rem;
-  margin: 0 0 1.5rem 0;
+  margin: 0 0 1.2rem 0;
   color: #64ffda;
   font-weight: bold;
 }
@@ -723,7 +743,7 @@ const visibleMaps = computed(() => {
 /* 左侧面板样式 */
 .location-card {
   background: linear-gradient(135deg, #1a202c 0%, #2d3748 100%);
-  padding: 1.5rem;
+  padding: 1.2rem;
   border-radius: 12px;
   border: 2px solid rgba(255, 255, 255, 0.05);
 }

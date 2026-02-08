@@ -297,12 +297,17 @@ async function handleRealmLevelAdvance() {
 /* Panel */
 .character-panel {
   width: 340px;
-  background: rgba(30, 35, 40, 0.95);
+  max-width: calc(100vw - 40px);
+  max-height: 85vh;
+  overflow-y: auto;
+  background: rgba(30, 35, 40, 0.98);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   padding: 1.5rem;
   box-shadow: 10px 10px 30px rgba(0,0,0,0.5);
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(15px);
+  display: flex;
+  flex-direction: column;
 }
 
 .panel-header {
@@ -310,6 +315,7 @@ async function handleRealmLevelAdvance() {
   align-items: center;
   margin-bottom: 2rem;
   position: relative;
+  flex-shrink: 0;
 }
 
 .level-badge {
@@ -330,13 +336,24 @@ async function handleRealmLevelAdvance() {
 
 .btn-close-panel {
   position: absolute;
-  right: 0;
+  right: -5px;
   top: -5px;
-  background: none;
+  background: rgba(255,255,255,0.05);
   border: none;
-  font-size: 1.5rem;
+  font-size: 1.8rem;
   color: #888;
   cursor: pointer;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 50%;
+}
+
+.btn-close-panel:hover {
+  color: #fff;
+  background: rgba(255,255,255,0.1);
 }
 
 /* Equipment Area */
@@ -498,14 +515,35 @@ async function handleRealmLevelAdvance() {
   color: #f1c40f;
 }
 
+/* Equipment Area responsive adjustments */
+@media (max-width: 440px) {
+  .character-panel {
+    padding: 1rem;
+    max-width: calc(100vw - 20px);
+  }
+  
+  .equipment-area {
+    height: 350px;
+    transform: scale(0.85);
+    transform-origin: top center;
+    margin-bottom: -40px;
+  }
+}
+
 @media (max-width: 600px) {
   .character-wrapper {
     left: 10px;
-    top: 60px;
-    transform: translateX(-150%);
+    right: 10px; /* Ensure it doesn't overflow right */
+    top: 50%;
+    transform: translate(-120%, -50%);
   }
   .character-wrapper.is-visible {
-    transform: translateX(0);
+    transform: translate(0, -50%);
+  }
+  
+  .bars-container {
+    width: 100%;
+    max-width: 340px;
   }
 }
 </style>
